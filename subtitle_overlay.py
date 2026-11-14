@@ -31,6 +31,28 @@ _log = LOG.open("a", encoding="utf-8", buffering=1)
 sys.stdout = _log
 sys.stderr = _log
 
+
+def _enable_dpi_awareness() -> None:
+    if sys.platform != "win32":
+        return
+    try:
+        if ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4)):
+            return
+    except Exception:
+        pass
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        return
+    except Exception:
+        pass
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+
+_enable_dpi_awareness()
+
 import tkinter as tk
 import tkinter.font as tkfont
 
@@ -93,6 +115,9 @@ def _raise_topmost(root: tk.Tk) -> None:
 
 
 class Overlay:
+    def _px(self, value: float) -> int:
+        return max(1, int(round(value * self.ui_scale)))
+
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.overrideredirect(True)
@@ -107,10 +132,11 @@ class Overlay:
 
         self.screen_w = self.root.winfo_screenwidth()
         self.screen_h = self.root.winfo_screenheight()
-        self.width = min(1500, max(820, int(self.screen_w * 0.88)))
-        self.height = 350
+        self.ui_scale = max(1.0, round(self.root.winfo_fpixels("1i") / 96.0, 3))
+        self.width = min(self._px(1500), max(self._px(820), int(self.screen_w * 0.88)))
+        self.height = self._px(350)
         self.x = max(0, (self.screen_w - self.width) // 2)
-        self.y = max(0, self.screen_h - self.height - 36)
+        self.y = max(0, self.screen_h - self.height - self._px(36))
         self.root.geometry(f"{self.width}x{self.height}+{self.x}+{self.y}")
 
         self.canvas = tk.Canvas(
@@ -192,8 +218,14 @@ class Overlay:
         )
         self.en_color = original_color
         self.zh_color = translation_color
-        self.height = max(350, min(760, int(190 + translation_size * 6.5 + original_size * 2)))
-        self.y = max(0, self.screen_h - self.height - 36)
+        self.height = max(
+            self._px(350),
+            min(
+                self._px(760),
+                self._px(190 + translation_size * 6.5 + original_size * 2),
+            ),
+        )
+        self.y = max(0, self.screen_h - self.height - self._px(36))
         self.render_key = ""
         if getattr(self, "visible", False):
             self.root.geometry(f"{self.width}x{self.height}+{self.x}+{self.y}")
@@ -201,10 +233,11 @@ class Overlay:
     def _render_stack(self, entries: list[dict]) -> None:
         self.canvas.delete("all")
         cx = self.width // 2
-        wrap = self.width - 140
+        wrap = self.width - self._px(140)
         count = len(entries)
         prepared: list[dict] = []
         total = 0
+        step = self._px(6)
         for index, entry in enumerate(entries):
             is_partial = bool(entry.get("partial"))
             only_one = count == 1
@@ -226,7 +259,7 @@ class Overlay:
                 anchor="n",
             )
             en_box = self.canvas.bbox(en_item) or (0, 0, 0, 24)
-            en_h = max(20, en_box[3] - en_box[1])
+            en_h = max(self._px(20), en_box[3] - en_box[1])
             zh_item = None
             zh_h = 0
             if zh:
@@ -241,9 +274,14 @@ class Overlay:
                     anchor="n",
                 )
                 zh_box = self.canvas.bbox(zh_item) or (0, 0, 0, 26)
-                zh_h = max(24, zh_box[3] - zh_box[1])
+                zh_h = max(self._px(24), zh_box[3] - zh_box[1])
             shadows = []
-            for dx, dy in ((-2, 1), (2, 1), (0, 2), (0, -1)):
+            for dx, dy in (
+                (-self._px(2), self._px(1)),
+                (self._px(2), self._px(1)),
+                (0, self._px(2)),
+                (0, -self._px(1)),
+            ):
                 shadows.append(
                     self.canvas.create_text(
                         cx + dx,
@@ -261,7 +299,7 @@ class Overlay:
                     shadows.append(
                         self.canvas.create_text(
                             cx + dx,
-                            dy + en_h + 6,
+                            dy + en_h + step,
                             text=zh,
                             font=zh_font,
                             fill="#000000",
@@ -271,7 +309,7 @@ class Overlay:
                             tags="shadow",
                         )
                     )
-            gap = 10 if index < count - 1 else 0
+            gap = self._px(10) if index < count - 1 else 0
             prepared.append(
                 {
                     "en": en_item,
@@ -282,18 +320,18 @@ class Overlay:
                     "gap": gap,
                 }
             )
-            total += en_h + (6 + zh_h if zh_item is not None else 0) + gap
-        y = max(4, (self.height - total) // 2)
+            total += en_h + (step + zh_h if zh_item is not None else 0) + gap
+        y = max(self._px(4), (self.height - total) // 2)
         for block in prepared:
             self.canvas.move(block["en"], 0, y)
             if block["zh"] is not None:
-                self.canvas.move(block["zh"], 0, y + block["en_h"] + 6)
+                self.canvas.move(block["zh"], 0, y + block["en_h"] + step)
             for shadow in block["shadows"]:
                 self.canvas.move(shadow, 0, y)
             self.canvas.tag_raise(block["en"])
             if block["zh"] is not None:
                 self.canvas.tag_raise(block["zh"])
-            y += block["en_h"] + (6 + block["zh_h"] if block["zh"] is not None else 0) + block["gap"]
+            y += block["en_h"] + (step + block["zh_h"] if block["zh"] is not None else 0) + block["gap"]
         self.canvas.tag_lower("shadow")
 
     def _poll(self) -> None:
