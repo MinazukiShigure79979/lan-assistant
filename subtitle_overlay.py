@@ -15,6 +15,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
+from typing import Optional
 
 FROZEN = bool(getattr(sys, "frozen", False))
 ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
@@ -127,10 +128,56 @@ class Overlay:
         self.last_turn_id = ""
         self.last_text = ""
         self.last_change = 0.0
+        self.displayed_at = 0.0
+        self.displayed_final = False
+        self.displayed_turn_id = ""
+        self.hold_until = 0.0
+        self.pending_render: Optional[dict] = None
+        self.pending_after = 0.0
         self.events: queue.Queue = queue.Queue(maxsize=4)
         self._stop = threading.Event()
         threading.Thread(target=self._poll, name="subtitle-poll", daemon=True).start()
         self.root.after(120, self._consume)
+
+    @staticmethod
+    def _hold_seconds(en: str, zh: str, is_final: bool) -> float:
+        if not is_final:
+            return 0.0
+        if zh:
+            return max(2.4, min(4.2, 1.4 + len(zh) * 0.07 + len(en) * 0.02))
+        return max(2.2, min(3.2, 1.2 + len(en) * 0.025))
+
+    def _show_item(self, item: dict, reset_hold: bool = True) -> None:
+        now = time.time()
+        self.last_text = item["key"]
+        self.last_turn_id = item["turn_id"]
+        self.last_change = now
+        self.displayed_at = now
+        self.displayed_final = not item["is_partial"]
+        self.displayed_turn_id = item["turn_id"]
+        if reset_hold:
+            self.hold_until = now + self._hold_seconds(item["en"], item["zh"], not item["is_partial"])
+        elif item["zh"] and not item["is_partial"]:
+            # Give the newly arrived Chinese line enough reading time too.
+            self.hold_until = max(
+                self.hold_until,
+                now + self._hold_seconds(item["en"], item["zh"], True),
+            )
+        print(
+            f"subtitle {item['turn_id']}{' partial' if item['is_partial'] else ''}: "
+            f"{item['en'][:80]!r} / {item['zh'][:80]!r} stay={self.hold_until - now:.1f}s",
+            flush=True,
+        )
+        self._render(item["en"][:900], item["zh"][:900], partial=item["is_partial"])
+        self.root.geometry(f"{self.width}x{self.height}+{self.x}+{self.y}")
+        self._show()
+
+    def _flush_pending(self) -> None:
+        if self.pending_render is None or time.time() < self.pending_after:
+            return
+        item = self.pending_render
+        self.pending_render = None
+        self._show_item(item)
 
     def _render(self, original: str, chinese: str, partial: bool = False) -> None:
         self.canvas.delete("all")
@@ -218,6 +265,7 @@ class Overlay:
             time.sleep(POLL_SECONDS)
 
     def _hide(self) -> None:
+        self.pending_render = None
         if self.visible:
             print("hide", flush=True)
             self.root.withdraw()
@@ -244,7 +292,12 @@ class Overlay:
             state = None
         if state is not None:
             self._apply(state)
-        if self.visible and time.time() - self.last_change > HIDE_AFTER_SECONDS:
+        self._flush_pending()
+        if (
+            self.visible
+            and self.pending_render is None
+            and time.time() - self.last_change > HIDE_AFTER_SECONDS
+        ):
             self._hide()
         self.root.after(100, self._consume)
 
@@ -277,21 +330,32 @@ class Overlay:
             if not en:
                 self._hide()
                 return
-            text_key = ("P:" if is_partial else "F:") + en + "\n" + zh
-            if text_key != self.last_text:
-                self.last_text = text_key
-                self.last_turn_id = turn_id
-                self.last_change = time.time()
-                print(
-                    f"subtitle {turn_id}{' partial' if is_partial else ''}: "
-                    f"{en[:80]!r} / {zh[:80]!r}",
-                    flush=True,
-                )
-                self._render(en[:900], zh[:900], partial=is_partial)
-                self.root.geometry(f"{self.width}x{self.height}+{self.x}+{self.y}")
-                self._show()
-            elif self.visible and time.time() - self.last_change > HIDE_AFTER_SECONDS:
-                self._hide()
+            item = {
+                "en": en,
+                "zh": zh,
+                "is_partial": is_partial,
+                "turn_id": turn_id,
+                "key": ("P:" if is_partial else "F:") + en + "\n" + zh,
+            }
+            if item["key"] == self.last_text:
+                return
+            now = time.time()
+            if self.displayed_final and now < self.hold_until:
+                if not is_partial and turn_id == self.displayed_turn_id:
+                    # The translation for the line already on screen arrived.
+                    self._show_item(item, reset_hold=False)
+                    if self.pending_render is not None:
+                        self.pending_after = self.hold_until
+                    return
+                self.pending_render = item
+                self.pending_after = self.hold_until
+                return
+            if is_partial and now - self.displayed_at < 0.9:
+                self.pending_render = item
+                self.pending_after = self.displayed_at + 0.9
+                return
+            self.pending_render = None
+            self._show_item(item)
         except Exception:
             import traceback
 
