@@ -204,7 +204,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "translate_asr_language": "",
     "meeting_asr_language": "zh",
     "translate_target_language": "zh",
-    "media_type": "series",
+    "media_type": "auto",
     "media_title": "",
     "media_context": "",
     "subtitle_style": "natural",
@@ -408,9 +408,9 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
         )
         if clean["translate_target_language"] not in ("zh", "en", "ja", "ko"):
             clean["translate_target_language"] = "zh"
-        clean["media_type"] = str(clean.get("media_type", "series") or "series")
-        if clean["media_type"] not in ("series", "movie", "anime", "documentary", "other"):
-            clean["media_type"] = "series"
+        clean["media_type"] = str(clean.get("media_type", "auto") or "auto")
+        if clean["media_type"] not in ("auto", "series", "movie", "anime", "documentary", "other"):
+            clean["media_type"] = "auto"
         clean["media_title"] = str(clean.get("media_title", "") or "")[:300]
         clean["media_context"] = str(clean.get("media_context", "") or "")[:4000]
         clean["subtitle_style"] = str(clean.get("subtitle_style", "natural") or "natural")

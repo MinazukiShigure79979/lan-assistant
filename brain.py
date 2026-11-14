@@ -506,8 +506,14 @@ class Brain:
             "ja": "Japanese",
             "ko": "Korean",
         }.get(str(target or "zh"), "Chinese")
-        media_type = str(self.settings.get("media_type", "series") or "series")
+        media_type = str(self.settings.get("media_type", "auto") or "auto")
         type_prompts = {
+            "auto": (
+                f"Auto-detect from the title, setting and dialogue: use natural spoken {language} for "
+                "conversation, a more accurate formal register for documentary narration, and keep names "
+                "and honorifics consistent. If the genre is unclear, use natural conversational subtitles. "
+                "Never mention the detected genre in the translation."
+            ),
             "series": f"TV series dialogue: conversational, consistent character names, natural spoken {language}.",
             "movie": f"Film dialogue: concise and cinematic, natural spoken {language}.",
             "anime": f"Anime dialogue: keep character names and honorifics consistent, natural spoken {language}.",

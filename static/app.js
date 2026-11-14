@@ -2208,7 +2208,7 @@
     els.setTranslateAsrLanguage.value = s.translate_asr_language || fallbackAsrLanguage;
     els.setTranslateTargetLanguage.value = s.translate_target_language || "zh";
     els.setMeetingAsrLanguage.value = s.meeting_asr_language || "zh";
-    els.setMediaType.value = s.media_type || "series";
+    els.setMediaType.value = s.media_type || "auto";
     els.setMediaTitle.value = s.media_title || "";
     els.setMediaContext.value = s.media_context || "";
     els.setSubtitleStyle.value = s.subtitle_style || "natural";

@@ -104,6 +104,7 @@
     "字幕翻译目标语言": "Subtitle target language",
     "字幕翻译风格": "Subtitle translation style",
     "内容类型": "Content type",
+    "自动识别（推荐）": "Auto-detect (recommended)",
     "剧名 / 节目名": "Show / title",
     "剧情、角色名、术语和翻译偏好": "Plot, names, terms and translation preferences",
     "字幕停顿（越短越快）": "Subtitle pause (shorter is faster)",
