@@ -2798,6 +2798,26 @@
     try {
       await api("/api/restart", { method: "POST", body: {} });
       btn.textContent = "正在重启…";
+      const startedAt = Date.now();
+      const waitForServer = async () => {
+        await new Promise((resolve) => setTimeout(resolve, 2200));
+        while (Date.now() - startedAt < 120000) {
+          try {
+            const response = await fetch("/api/health", { cache: "no-store" });
+            if (response.ok) {
+              window.location.reload();
+              return;
+            }
+          } catch (_) {
+            // Server is restarting; keep polling.
+          }
+          await new Promise((resolve) => setTimeout(resolve, 900));
+        }
+        btn.disabled = false;
+        btn.textContent = "重启应用";
+        toast("服务没有恢复，请手动启动 Lan.Assistant。", "bad");
+      };
+      waitForServer();
     } catch (err) {
       btn.disabled = false;
       btn.textContent = "重启应用";
