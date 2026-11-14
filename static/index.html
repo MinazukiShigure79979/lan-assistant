@@ -7,7 +7,7 @@
   <title>Lan.Assistant</title>
   <link rel="icon" type="image/png" sizes="256x256" href="/static/favicon.png?v=37">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=37">
-  <link rel="stylesheet" href="/static/app.css?v=63">
+  <link rel="stylesheet" href="/static/app.css?v=64">
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -385,132 +385,171 @@
       <div class="settings-scope-hint" id="settingsScopeHint"></div>
       <div class="modal-body">
         <div class="settings-section" data-settings-tab="common">
-          <div class="settings-title">
-            <h3>运行环境</h3>
-            <button type="button" class="btn btn-tiny" id="btnApplyHardware">重新检测并应用</button>
-          </div>
-          <div class="device-hint" id="hardwareSummary">正在检测 CPU / 显卡 / 内存…</div>
-          <div class="device-hint" id="hardwareHint"></div>
-          <label class="check">
-            <input type="checkbox" id="setHardwareAuto" checked>
-            <span><b>根据硬件自动调整运行配置</b><small>换电脑时自动选择 CUDA / Vulkan 核显 / CPU，并切换模型和语音识别设备</small></span>
-          </label>
-        </div>
-
-        <div class="settings-section" data-settings-tab="common">
-          <div class="settings-title">
-            <h3>音频来源</h3>
-            <button type="button" class="btn btn-tiny" id="btnRefreshDevices">刷新设备</button>
-          </div>
-          <div class="form-grid">
-            <label class="field span-2">
-              <span>系统声音（对方）— 选扬声器 / 耳机的 Loopback</span>
-              <select id="setOtherDevice"></select>
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>运行环境</h3>
+                <p class="settings-block-desc">决定语音识别和本地模型使用 GPU 还是 CPU，换电脑后可重新检测。</p>
+              </div>
+              <button type="button" class="btn btn-tiny" id="btnApplyHardware">重新检测并应用</button>
+            </div>
+            <div class="device-hint" id="hardwareSummary">正在检测 CPU / 显卡 / 内存…</div>
+            <div class="device-hint" id="hardwareHint"></div>
+            <label class="check">
+              <input type="checkbox" id="setHardwareAuto" checked>
+              <span><b>根据硬件自动调整运行配置</b><small>换电脑时自动选择 CUDA / Vulkan 核显 / CPU，并切换模型和语音识别设备</small></span>
             </label>
-            <label class="field span-2">
-              <span>麦克风（我）</span>
-              <select id="setMicDevice"></select>
-            </label>
-          </div>
-          <div class="device-hint" id="deviceHint">正在读取音频设备…</div>
-          <div class="device-hint global-model-note">
-            回答模型：<b id="globalModelLabel">本地 Qwen3.5-9B</b> · 对所有工作区生效
-            <button type="button" class="link subtle" id="btnOpenModelTab">更改</button>
           </div>
         </div>
 
         <div class="settings-section" data-settings-tab="common">
-          <h3>识别与翻译</h3>
-          <div class="form-grid compact language-field">
-            <label class="field span-2">
-              <span>界面语言 / Interface language</span>
-              <select id="setUiLanguage">
-                <option value="zh">中文</option>
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-                <option value="ko">한국어</option>
-              </select>
-              <small class="field-note">首次安装按 Windows 系统语言选择；切换后会同步各功能的默认语言。</small>
-            </label>
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>音频来源</h3>
+                <p class="settings-block-desc">系统声音用于听对方，麦克风用于听自己；设备改动在下次开始通话时生效。</p>
+              </div>
+              <button type="button" class="btn btn-tiny" id="btnRefreshDevices">刷新设备</button>
+            </div>
+            <div class="form-grid">
+              <label class="field">
+                <span>系统声音（对方）— 选扬声器 / 耳机的 Loopback</span>
+                <select id="setOtherDevice"></select>
+              </label>
+              <label class="field">
+                <span>麦克风（我）</span>
+                <select id="setMicDevice"></select>
+              </label>
+            </div>
+            <div class="device-hint" id="deviceHint">正在读取音频设备…</div>
+            <div class="device-hint global-model-note">
+              回答模型：<b id="globalModelLabel">本地 Qwen3.5-9B</b> · 对所有工作区生效
+              <button type="button" class="link subtle" id="btnOpenModelTab">更改</button>
+            </div>
           </div>
-          <div class="check-grid">
-            <label class="check"><input type="checkbox" id="setTranslate" checked><span><b>附加译文</b><small>听读翻译使用所选目标语言；通话/会议使用中文</small></span></label>
-            <label class="check"><input type="checkbox" id="setPartial" checked><span><b>边说边显示</b><small>说话过程中显示临时识别文字</small></span></label>
-            <label class="check"><input type="checkbox" id="setSaveTranscript" checked><span><b>保存文字记录</b><small>仅保存文字到本机，不保存录音</small></span></label>
-            <label class="check"><input type="checkbox" id="setRestoreLastMode" checked><span><b>启动时恢复上次工作区</b><small>例如上次停在会议纪要，下次启动直接回到会议纪要</small></span></label>
-            <label class="check"><input type="checkbox" id="setStartWithWindows"><span><b>开机自动启动</b><small>登录 Windows 后自动启动托盘，不弹控制台</small></span></label>
-          </div>
-          <div class="form-grid compact">
-            <label class="field span-2">
-              <span>语音识别模型（自动扫描 models/）</span>
-              <select id="setAsrModel"></select>
-              <small class="field-note">修改后下次启动生效；CPU/核显平台建议 Small 或 Medium。</small>
-            </label>
+        </div>
+
+        <div class="settings-section" data-settings-tab="common">
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>识别与翻译</h3>
+                <p class="settings-block-desc">界面语言、字幕译文开关、边说边显示和启动行为；识别模型可单独切换。</p>
+              </div>
+            </div>
+            <div class="form-grid compact language-field">
+              <label class="field">
+                <span>界面语言 / Interface language</span>
+                <select id="setUiLanguage">
+                  <option value="zh">中文</option>
+                  <option value="en">English</option>
+                  <option value="ja">日本語</option>
+                  <option value="ko">한국어</option>
+                </select>
+                <small class="field-note">首次安装按 Windows 系统语言选择；切换后会同步各功能的默认语言。</small>
+              </label>
+            </div>
+            <div class="check-grid">
+              <label class="check"><input type="checkbox" id="setTranslate" checked><span><b>附加译文</b><small>听读翻译使用所选目标语言；通话/会议使用中文</small></span></label>
+              <label class="check"><input type="checkbox" id="setPartial" checked><span><b>边说边显示</b><small>说话过程中显示临时识别文字；关闭后只在整句结束后显示</small></span></label>
+              <label class="check"><input type="checkbox" id="setSaveTranscript" checked><span><b>保存文字记录</b><small>仅保存文字到本机，不保存录音</small></span></label>
+              <label class="check"><input type="checkbox" id="setRestoreLastMode" checked><span><b>启动时恢复上次工作区</b><small>例如上次停在会议纪要，下次启动直接回到会议纪要</small></span></label>
+              <label class="check"><input type="checkbox" id="setStartWithWindows"><span><b>开机自动启动</b><small>登录 Windows 后自动启动托盘，不弹控制台</small></span></label>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>语音识别模型（自动扫描 models/）</span>
+                <select id="setAsrModel"></select>
+                <small class="field-note">修改后下次启动生效；CPU/核显平台建议 Small 或 Medium。</small>
+              </label>
+            </div>
           </div>
         </div>
 
         <div class="settings-section" data-settings-tab="call">
-          <h3>通话副驾</h3>
-          <div class="check-grid">
-            <label class="check"><input type="checkbox" id="setAutoSuggest" checked><span><b>自动生成回答</b><small>对方停顿后自动刷新建议</small></span></label>
-            <label class="check"><input type="checkbox" id="setCallAutoSummary" checked><span><b>结束后自动总结</b><small>停止通话后生成问答复盘和英语反馈</small></span></label>
-            <label class="check span-2"><input type="checkbox" id="setEchoGuard" checked><span><b>外放回声抑制</b><small>对方说话时暂停麦克风，避免把喇叭声当成「我」；戴耳机时无影响</small></span></label>
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>回答建议</h3>
+                <p class="settings-block-desc">控制什么时候自动生成回答、生成几条，以及结束通话后的复盘。</p>
+              </div>
+            </div>
+            <div class="check-grid">
+              <label class="check"><input type="checkbox" id="setAutoSuggest" checked><span><b>自动生成回答</b><small>对方停顿后自动刷新建议</small></span></label>
+              <label class="check"><input type="checkbox" id="setCallAutoSummary" checked><span><b>结束后自动总结</b><small>停止通话后生成问答复盘和英语反馈</small></span></label>
+              <label class="check"><input type="checkbox" id="setEchoGuard" checked><span><b>外放回声抑制</b><small>对方说话时暂停麦克风，避免把喇叭声当成「我」；戴耳机时无影响</small></span></label>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>每次给几个回答</span>
+                <select id="setSuggestCount">
+                  <option value="1">1 个（最快）</option>
+                  <option value="2" selected>2 个（推荐，平衡）</option>
+                  <option value="3">3 个（更慢）</option>
+                  <option value="4">4 个（最慢）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>长段落等待（连续多句时）</span>
+                <select id="setLongPassageDelay">
+                  <option value="1200">1.2 秒（最跟手）</option>
+                  <option value="1800">1.8 秒</option>
+                  <option value="2800" selected>2.8 秒（推荐）</option>
+                  <option value="3500">3.5 秒（更耐心）</option>
+                  <option value="5000">5.0 秒（等较长停顿）</option>
+                </select>
+              </label>
+            </div>
           </div>
-          <div class="form-grid compact">
-            <label class="field span-2">
-              <span>通话识别语言</span>
-              <select id="setCallAsrLanguage">
-                <option value="zh">中文（简体）</option>
-                <option value="en">英语（English）</option>
-                <option value="ja">日语（日本語）</option>
-                <option value="ko">韩语（한국어）</option>
-                <option value="auto">自动检测（其他语言）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>每次给几个回答</span>
-              <select id="setSuggestCount">
-                <option value="1">1 个（最快）</option>
-                <option value="2" selected>2 个（推荐，平衡）</option>
-                <option value="3">3 个（更慢）</option>
-                <option value="4">4 个（最慢）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>对方停顿多久算一句</span>
-              <select id="setCallSilenceMs">
-                <option value="450">0.45 秒（更快，容易截断）</option>
-                <option value="650">0.65 秒</option>
-                <option value="750" selected>0.75 秒（推荐）</option>
-                <option value="1000">1.0 秒（更稳）</option>
-                <option value="1200">1.2 秒（嘈杂环境）</option>
-              </select>
-            </label>
-            <label class="field span-2">
-              <span>通话场景词库（每行一个，错误=正确）</span>
-              <textarea id="setCallVocabulary" rows="4" maxlength="8000" placeholder="Huawei Cloud Core Network&#10;cutover&#10;handover&#10;割接=cutover"></textarea>
-              <small class="field-note">用于本次通话的 ASR 提示和精确替换。只放公司、项目、人名、技术术语；换场景时改这里。</small>
-            </label>
-            <label class="field">
-              <span>长段落等待（连续多句时）</span>
-              <select id="setLongPassageDelay">
-                <option value="1200">1.2 秒（最跟手）</option>
-                <option value="1800">1.8 秒</option>
-                <option value="2800" selected>2.8 秒（推荐）</option>
-                <option value="3500">3.5 秒（更耐心）</option>
-                <option value="5000">5.0 秒（等较长停顿）</option>
-              </select>
-            </label>
-            <label class="field span-2">
-              <span>麦克风增益 <output id="setMicGainValue">1.0×</output></span>
-              <input type="range" id="setMicGain" min="0.8" max="2.5" step="0.1" value="1">
-            </label>
+
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>识别与场景</h3>
+                <p class="settings-block-desc">设置通话语言、断句速度和场景词库；词库会影响对方原话的识别和术语替换。</p>
+              </div>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>通话识别语言</span>
+                <select id="setCallAsrLanguage">
+                  <option value="zh">中文（简体）</option>
+                  <option value="en">英语（English）</option>
+                  <option value="ja">日语（日本語）</option>
+                  <option value="ko">韩语（한국어）</option>
+                  <option value="auto">自动检测（其他语言）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>对方停顿多久算一句</span>
+                <select id="setCallSilenceMs">
+                  <option value="450">0.45 秒（更快，容易截断）</option>
+                  <option value="650">0.65 秒</option>
+                  <option value="750" selected>0.75 秒（推荐）</option>
+                  <option value="1000">1.0 秒（更稳）</option>
+                  <option value="1200">1.2 秒（嘈杂环境）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>通话场景词库（每行一个，错误=正确）</span>
+                <textarea id="setCallVocabulary" rows="4" maxlength="8000" placeholder="Huawei Cloud Core Network&#10;cutover&#10;handover&#10;割接=cutover"></textarea>
+                <small class="field-note">用于本次通话的 ASR 提示和精确替换。只放公司、项目、人名、技术术语；换场景时改这里。</small>
+              </label>
+              <label class="field">
+                <span>麦克风增益 <output id="setMicGainValue">1.0×</output></span>
+                <input type="range" id="setMicGain" min="0.8" max="2.5" step="0.1" value="1">
+              </label>
+            </div>
           </div>
         </div>
 
         <div class="settings-section" data-settings-tab="model">
+          <div class="settings-block">
           <div class="settings-title">
-            <h3>语言模型（全局）</h3>
+            <div>
+              <h3>语言模型（全局）</h3>
+              <p class="settings-block-desc">选择本地模型或 API。这里同时影响回答建议和字幕翻译，切换后所有工作区共用。</p>
+            </div>
             <span class="engine-note">对所有工作区生效</span>
           </div>
           <div class="form-grid compact">
@@ -558,145 +597,173 @@
             </label>
             <div class="device-hint" id="apiHint">使用 API 时，回答和字幕文本会发送给该服务商。DeepSeek 默认会用 deepseek-flash，并关闭思考模式。</div>
           </div>
+          </div>
         </div>
 
         <div class="settings-section" data-settings-tab="translate">
-          <div class="settings-title">
-            <h3>字幕预设</h3>
-            <span class="engine-note" id="mediaPresetState">自动保存到本机 · 仅听读翻译模式使用</span>
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>字幕内容</h3>
+                <p class="settings-block-desc">告诉程序视频语言、目标语言和剧情背景。内容类型可以自动判断，也可以手动固定。</p>
+              </div>
+              <span class="engine-note" id="mediaPresetState">自动保存到本机 · 仅听读翻译模式使用</span>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>字幕识别语言</span>
+                <select id="setTranslateAsrLanguage">
+                  <option value="zh">中文（简体）</option>
+                  <option value="en">英语（English）</option>
+                  <option value="ja">日语（日本語）</option>
+                  <option value="ko">韩语（한국어）</option>
+                  <option value="auto">自动检测（其他语言）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>字幕翻译目标语言</span>
+                <select id="setTranslateTargetLanguage">
+                  <option value="zh">中文（简体）</option>
+                  <option value="en">English</option>
+                  <option value="ja">日本語</option>
+                  <option value="ko">한국어</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>内容类型</span>
+                <select id="setMediaType">
+                  <option value="auto">自动识别（推荐）</option>
+                  <option value="series">电视剧 / 剧集</option>
+                  <option value="movie">电影</option>
+                  <option value="anime">动漫 / 动画</option>
+                  <option value="documentary">纪录片 / 课程</option>
+                  <option value="other">其他</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>剧名 / 节目名</span>
+                <input type="text" id="setMediaTitle" maxlength="300" placeholder="例如：The Bear / 进击的巨人">
+              </label>
+              <label class="field">
+                <span>剧情、角色名、术语和翻译偏好</span>
+                <textarea id="setMediaContext" rows="3" maxlength="4000" placeholder="例如：主角叫 Carmy，餐厅叫 The Bear；术语写成 Nen=念；保留 family meal 等餐饮术语；整体语气焦虑、快节奏；人名统一用英文。"></textarea>
+                <small class="field-note">这是翻译的主要背景信息；人名和术语越具体，前后越一致。</small>
+              </label>
+              <label class="field">
+                <span>字幕翻译风格</span>
+                <select id="setSubtitleStyle">
+                  <option value="natural">自然口语（推荐）</option>
+                  <option value="literal">贴近原文</option>
+                  <option value="terminology">保留术语 / 人名一致</option>
+                </select>
+              </label>
+            </div>
           </div>
-          <div class="form-grid compact">
-            <label class="field span-2">
-              <span>字幕识别语言</span>
-              <select id="setTranslateAsrLanguage">
-                <option value="zh">中文（简体）</option>
-                <option value="en">英语（English）</option>
-                <option value="ja">日语（日本語）</option>
-                <option value="ko">韩语（한국어）</option>
-                <option value="auto">自动检测（其他语言）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>字幕翻译目标语言</span>
-              <select id="setTranslateTargetLanguage">
-                <option value="zh">中文（简体）</option>
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-                <option value="ko">한국어</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>内容类型</span>
-              <select id="setMediaType">
-                <option value="auto">自动识别（推荐）</option>
-                <option value="series">电视剧 / 剧集</option>
-                <option value="movie">电影</option>
-                <option value="anime">动漫 / 动画</option>
-                <option value="documentary">纪录片 / 课程</option>
-                <option value="other">其他</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>剧名 / 节目名</span>
-              <input type="text" id="setMediaTitle" maxlength="300" placeholder="例如：The Bear / 进击的巨人">
-            </label>
-            <label class="field span-2">
-              <span>剧情、角色名、术语和翻译偏好</span>
-              <textarea id="setMediaContext" rows="3" maxlength="4000" placeholder="例如：主角叫 Carmy，餐厅叫 The Bear；术语写成 Nen=念；保留 family meal 等餐饮术语；整体语气焦虑、快节奏；人名统一用英文。"></textarea>
-            </label>
-            <label class="field">
-              <span>字幕翻译风格</span>
-              <select id="setSubtitleStyle">
-                <option value="natural">自然口语（推荐）</option>
-                <option value="literal">贴近原文</option>
-                <option value="terminology">保留术语 / 人名一致</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>字幕停顿（越短越快）</span>
-              <select id="setSubtitleSilence">
-                <option value="250">0.25 秒（最快，容易切碎）</option>
-                <option value="350">0.35 秒（推荐）</option>
-                <option value="450">0.45 秒</option>
-                <option value="650">0.65 秒（更完整）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>partial 刷新间隔</span>
-              <select id="setPartialInterval">
-                <option value="500">0.5 秒（最快，GPU 负载高）</option>
-                <option value="800">0.8 秒（推荐）</option>
-                <option value="1000">1.0 秒</option>
-                <option value="1500">1.5 秒（更省资源）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>partial 音频窗口</span>
-              <select id="setPartialWindow">
-                <option value="4000">4 秒（更轻，上下文少）</option>
-                <option value="6000">6 秒（推荐）</option>
-                <option value="8000">8 秒（上下文多，更慢）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>最长切句</span>
-              <select id="setSubtitleMaxSegment">
-                <option value="4">4 秒（更快，句子更碎）</option>
-                <option value="6">6 秒（推荐）</option>
-                <option value="8">8 秒</option>
-                <option value="10">10 秒（更完整，等待更久）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>悬浮字幕轮询</span>
-              <select id="setOverlayPoll">
-                <option value="100">100ms（最快）</option>
-                <option value="150">150ms（推荐）</option>
-                <option value="250">250ms</option>
-                <option value="400">400ms（更省资源）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>最终翻译启动延迟</span>
-              <select id="setTranslateDelay">
-                <option value="0">0ms（立即）</option>
-                <option value="80">80ms（推荐）</option>
-                <option value="200">200ms（合并短句）</option>
-                <option value="400">400ms（更省请求）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>最终翻译上下文</span>
-              <select id="setTranslateContext">
-                <option value="0">0 条（最快）</option>
-                <option value="2">2 条</option>
-                <option value="4">4 条</option>
-                <option value="6">6 条（推荐）</option>
-                <option value="8">8 条（更连贯，略慢）</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>partial 翻译上下文</span>
-              <select id="setPartialContext">
-                <option value="0">0 条（最快，最少上下文）</option>
-                <option value="2">2 条</option>
-                <option value="4">4 条（推荐）</option>
-                <option value="6">6 条（更连贯，略慢）</option>
-              </select>
+
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>延迟与性能</h3>
+                <p class="settings-block-desc">数值越小通常延迟越低，但会增加句子碎片和模型调用次数。前四项在下次开始听读时生效，后四项即时生效。</p>
+              </div>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>字幕停顿（越短越快）</span>
+                <select id="setSubtitleSilence">
+                  <option value="250">0.25 秒（最快，容易切碎）</option>
+                  <option value="350">0.35 秒（推荐）</option>
+                  <option value="450">0.45 秒</option>
+                  <option value="650">0.65 秒（更完整）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>partial 刷新间隔</span>
+                <select id="setPartialInterval">
+                  <option value="500">0.5 秒（最快，GPU 负载高）</option>
+                  <option value="800">0.8 秒（推荐）</option>
+                  <option value="1000">1.0 秒</option>
+                  <option value="1500">1.5 秒（更省资源）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>partial 音频窗口</span>
+                <select id="setPartialWindow">
+                  <option value="4000">4 秒（更轻，上下文少）</option>
+                  <option value="6000">6 秒（推荐）</option>
+                  <option value="8000">8 秒（上下文多，更慢）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>最长切句</span>
+                <select id="setSubtitleMaxSegment">
+                  <option value="4">4 秒（更快，句子更碎）</option>
+                  <option value="6">6 秒（推荐）</option>
+                  <option value="8">8 秒</option>
+                  <option value="10">10 秒（更完整，等待更久）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>悬浮字幕轮询</span>
+                <select id="setOverlayPoll">
+                  <option value="100">100ms（最快）</option>
+                  <option value="150">150ms（推荐）</option>
+                  <option value="250">250ms</option>
+                  <option value="400">400ms（更省资源）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>最终翻译启动延迟</span>
+                <select id="setTranslateDelay">
+                  <option value="0">0ms（立即）</option>
+                  <option value="80">80ms（推荐）</option>
+                  <option value="200">200ms（合并短句）</option>
+                  <option value="400">400ms（更省请求）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>最终翻译上下文</span>
+                <select id="setTranslateContext">
+                  <option value="0">0 条（最快）</option>
+                  <option value="2">2 条</option>
+                  <option value="4">4 条</option>
+                  <option value="6">6 条（推荐）</option>
+                  <option value="8">8 条（更连贯，略慢）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>partial 翻译上下文</span>
+                <select id="setPartialContext">
+                  <option value="0">0 条（最快，最少上下文）</option>
+                  <option value="2">2 条</option>
+                  <option value="4">4 条（推荐）</option>
+                  <option value="6">6 条（更连贯，略慢）</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>悬浮字幕</h3>
+                <p class="settings-block-desc">在看剧或全屏播放时，把双语字幕显示在屏幕底部。</p>
+              </div>
+            </div>
+            <label class="check api-thinking">
+              <input type="checkbox" id="setOverlayEnabled" checked>
+              <span><b>自动显示悬浮字幕</b><small>全屏看剧时在屏幕底部显示文字，无黑色底条；没有字幕时自动隐藏</small></span>
             </label>
           </div>
-          <div class="device-hint">
-            数值越小通常延迟越低，但太小会增加句子碎片和模型调用次数。partial 间隔、窗口、停顿、最长切句在下次开始听读时生效；悬浮轮询和翻译参数即时生效。
-          </div>
-          <label class="check api-thinking">
-            <input type="checkbox" id="setOverlayEnabled" checked>
-            <span><b>自动显示悬浮字幕</b><small>全屏看剧时在屏幕底部显示文字，无黑色底条；没有字幕时自动隐藏</small></span>
-          </label>
         </div>
 
         <div class="settings-section" data-settings-tab="model">
+          <div class="settings-block">
           <div class="settings-title">
-            <h3>本地模型</h3>
+            <div>
+              <h3>本地模型</h3>
+              <p class="settings-block-desc">选择本机运行的模型版本；模型管理可以查看、加入或删除模型目录。</p>
+            </div>
             <div class="settings-title-actions">
               <button type="button" class="btn btn-tiny" id="btnRefreshModels">刷新模型列表</button>
               <button type="button" class="btn btn-tiny" id="btnTestLlm">测试模型</button>
@@ -748,133 +815,190 @@
               <button type="button" class="btn btn-tiny" id="btnAddCustomModel">加入列表</button>
             </details>
           </div>
+          </div>
         </div>
 
         <div class="settings-section" data-settings-tab="voice">
-          <h3>语音输入</h3>
-          <div class="form-grid compact">
-            <label class="field">
-              <span>触发方式</span>
-              <select id="setVoiceTriggerMode">
-                <option value="hotkey">只用快捷键</option>
-                <option value="focus">自动监听输入框（语音输入工作区）</option>
-                <option value="both">快捷键 + 自动监听</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>全局快捷键</span>
-              <select id="setVoiceHotkey">
-                <option value="ctrl+alt+space">Ctrl + Alt + Space（推荐）</option>
-                <option value="ctrl+shift+space">Ctrl + Shift + Space</option>
-                <option value="alt+space">Alt + Space</option>
-                <option value="f9">F9</option>
-                <option value="f10">F10</option>
-              </select>
-            </label>
-            <label class="field span-2">
-              <span>快捷键行为</span>
-              <select id="setVoiceHotkeyHold">
-                <option value="false">按一下开始，再按一下结束（切换）</option>
-                <option value="true">按住说话，松开结束</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>输入语言</span>
-              <select id="setVoiceInputLanguage">
-                <option value="zh">中文（简体，默认）</option>
-                <option value="yue">粤语（Cantonese，实验性）</option>
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-                <option value="ko">한국어</option>
-                <option value="auto">自动检测</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>目标语言</span>
-              <select id="setVoiceTargetLanguage">
-                <option value="none">不翻译，只转写</option>
-                <option value="zh">中文（简体）</option>
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-                <option value="ko">한국어</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>关闭浮窗时插入</span>
-              <select id="setVoiceNoOverlayInsert">
-                <option value="translation">译文（默认）</option>
-                <option value="original">原文</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>最长录音</span>
-              <select id="setVoiceMaxSeconds">
-                <option value="45">45 秒</option>
-                <option value="90">90 秒</option>
-                <option value="120">120 秒</option>
-                <option value="180">180 秒</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>自动停止静音</span>
-              <select id="setVoiceFocusSilence">
-                <option value="800">0.8 秒（更快）</option>
-                <option value="1200">1.2 秒（推荐）</option>
-                <option value="1800">1.8 秒（更耐心）</option>
-                <option value="2500">2.5 秒</option>
-              </select>
-            </label>
-            <label class="field span-2">
-              <span>监听兼容窗口标题（可多个）</span>
-              <textarea id="setVoiceFocusTitles" rows="2" maxlength="1000" placeholder="DeepSeek Harness&#10;ChatGPT&#10;Claude" autocomplete="off"></textarea>
-              <small class="field-note">每行一个标题关键字，也可以直接用逗号分隔；匹配时不区分大小写。</small>
-            </label>
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>触发与监听</h3>
+                <p class="settings-block-desc">决定如何开始录音，以及在哪些窗口里可以检测到输入框并自动开始。</p>
+              </div>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>触发方式</span>
+                <select id="setVoiceTriggerMode">
+                  <option value="hotkey">只用快捷键</option>
+                  <option value="focus">自动监听输入框（语音输入工作区）</option>
+                  <option value="both">快捷键 + 自动监听</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>全局快捷键</span>
+                <select id="setVoiceHotkey">
+                  <option value="ctrl+alt+space">Ctrl + Alt + Space（推荐）</option>
+                  <option value="ctrl+shift+space">Ctrl + Shift + Space</option>
+                  <option value="alt+space">Alt + Space</option>
+                  <option value="f9">F9</option>
+                  <option value="f10">F10</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>快捷键行为</span>
+                <select id="setVoiceHotkeyHold">
+                  <option value="false">按一下开始，再按一下结束（切换）</option>
+                  <option value="true">按住说话，松开结束</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>最长录音</span>
+                <select id="setVoiceMaxSeconds">
+                  <option value="45">45 秒</option>
+                  <option value="90">90 秒</option>
+                  <option value="120">120 秒</option>
+                  <option value="180">180 秒</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>自动停止静音</span>
+                <select id="setVoiceFocusSilence">
+                  <option value="800">0.8 秒（更快）</option>
+                  <option value="1200">1.2 秒（推荐）</option>
+                  <option value="1800">1.8 秒（更耐心）</option>
+                  <option value="2500">2.5 秒</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>监听兼容窗口标题（可多个）</span>
+                <textarea id="setVoiceFocusTitles" rows="2" maxlength="1000" placeholder="DeepSeek Harness&#10;ChatGPT&#10;Claude" autocomplete="off"></textarea>
+                <small class="field-note">每行一个标题关键字，也可以直接用逗号分隔；匹配时不区分大小写。</small>
+              </label>
+            </div>
+            <div class="device-hint">自动监听只在「语音输入」工作区生效，且只识别常见输入框（记事本、浏览器、聊天输入框等）。Electron/网页输入框不会暴露原生焦点，可在「监听兼容窗口标题」里填多个窗口标题关键字，每行一个或用逗号分隔；匹配不区分大小写。游戏内自绘聊天框通常不会被识别；全屏游戏默认跳过。</div>
           </div>
-          <div class="check-grid">
-            <label class="check"><input type="checkbox" id="setVoiceOverlayEnabled" checked><span><b>显示校对浮窗</b><small>关闭后识别完直接插入，不再显示校对窗口</small></span></label>
-            <label class="check"><input type="checkbox" id="setVoiceFocusSkipFullscreen" checked><span><b>全屏时不自动监听</b><small>避免在游戏中误开麦克风；需要时仍可用快捷键</small></span></label>
-            <label class="check"><input type="checkbox" id="setVoiceAutoPunctuation" checked><span><b>自动补标点</b><small>Whisper 没给出结尾标点时补「。」或「.」；不会改写句子内容</small></span></label>
-            <label class="check"><input type="checkbox" id="setVoiceAutoProofread" checked><span><b>自动文字校对</b><small>用当前模型修正明显同音字/错别字，不改变原意；会增加一点生成时间</small></span></label>
+
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>输入与插入</h3>
+                <p class="settings-block-desc">设置识别语言、翻译目标，以及关闭校对浮窗后插入原文还是译文。</p>
+              </div>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>输入语言</span>
+                <select id="setVoiceInputLanguage">
+                  <option value="zh">中文（简体，默认）</option>
+                  <option value="yue">粤语（Cantonese，实验性）</option>
+                  <option value="en">English</option>
+                  <option value="ja">日本語</option>
+                  <option value="ko">한국어</option>
+                  <option value="auto">自动检测</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>目标语言</span>
+                <select id="setVoiceTargetLanguage">
+                  <option value="none">不翻译，只转写</option>
+                  <option value="zh">中文（简体）</option>
+                  <option value="en">English</option>
+                  <option value="ja">日本語</option>
+                  <option value="ko">한국어</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>关闭浮窗时插入</span>
+                <select id="setVoiceNoOverlayInsert">
+                  <option value="translation">译文（默认）</option>
+                  <option value="original">原文</option>
+                </select>
+              </label>
+            </div>
           </div>
-          <div class="form-grid compact">
-            <label class="field span-2">
-              <span>语音词库（每行一个，错误=正确）</span>
-              <textarea id="setVoiceVocabulary" rows="5" maxlength="8000" placeholder="Carmy&#10;Lan.Assistant&#10;交对=校对"></textarea>
-              <small class="field-note">规范词用于 Whisper 识别偏置和自动校对；别名写成「错词=正确词」。只放专名、术语和反复出错的词。</small>
-            </label>
+
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>校对与浮窗</h3>
+                <p class="settings-block-desc">控制识别完成后的校对浮窗、自动标点和文字校正。</p>
+              </div>
+            </div>
+            <div class="check-grid">
+              <label class="check"><input type="checkbox" id="setVoiceOverlayEnabled" checked><span><b>显示校对浮窗</b><small>关闭后识别完直接插入，不再显示校对窗口</small></span></label>
+              <label class="check"><input type="checkbox" id="setVoiceFocusSkipFullscreen" checked><span><b>全屏时不自动监听</b><small>避免在游戏中误开麦克风；需要时仍可用快捷键</small></span></label>
+              <label class="check"><input type="checkbox" id="setVoiceAutoPunctuation" checked><span><b>自动补标点</b><small>Whisper 没给出结尾标点时补「。」或「.」；不会改写句子内容</small></span></label>
+              <label class="check"><input type="checkbox" id="setVoiceAutoProofread" checked><span><b>自动文字校对</b><small>用当前模型修正明显同音字/错别字，不改变原意；会增加一点生成时间</small></span></label>
+            </div>
           </div>
-          <div class="device-hint">自动监听只在「语音输入」工作区生效，且只识别常见输入框（记事本、浏览器、聊天输入框等）。Electron/网页输入框不会暴露原生焦点，可在「监听兼容窗口标题」里填多个窗口标题关键字，每行一个或用逗号分隔；匹配不区分大小写。游戏内自绘聊天框通常不会被识别；全屏游戏默认跳过。关闭校对浮窗后，会直接把原文或译文插入刚才的输入框。</div>
+
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>语音词库</h3>
+                <p class="settings-block-desc">把专有名词、项目名和经常听错的词交给识别模型和自动校对。</p>
+              </div>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>语音词库（每行一个，错误=正确）</span>
+                <textarea id="setVoiceVocabulary" rows="5" maxlength="8000" placeholder="Carmy&#10;Lan.Assistant&#10;交对=校对"></textarea>
+                <small class="field-note">规范词用于 Whisper 识别偏置和自动校对；别名写成「错词=正确词」。只放专名、术语和反复出错的词。</small>
+              </label>
+            </div>
+          </div>
         </div>
 
         <div class="settings-section" data-settings-tab="meeting">
-          <h3>会议纪要</h3>
-          <div class="check-grid">
-            <label class="check"><input type="checkbox" id="setMeetingAutoNotes" checked><span><b>停止后自动生成纪要</b><small>记录结束后自动整理摘要、决定和待办</small></span></label>
-            <label class="field">
-              <span>纪要语言</span>
-              <select id="setMeetingNotesLanguage">
-                <option value="zh">中文</option>
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-                <option value="ko">한국어</option>
-              </select>
-            </label>
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>纪要生成</h3>
+                <p class="settings-block-desc">控制停止录音后是否自动整理纪要，以及纪要使用哪种语言。</p>
+              </div>
+            </div>
+            <div class="check-grid">
+              <label class="check"><input type="checkbox" id="setMeetingAutoNotes" checked><span><b>停止后自动生成纪要</b><small>记录结束后自动整理摘要、决定和待办</small></span></label>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>纪要语言</span>
+                <select id="setMeetingNotesLanguage">
+                  <option value="zh">中文</option>
+                  <option value="en">English</option>
+                  <option value="ja">日本語</option>
+                  <option value="ko">한국어</option>
+                </select>
+              </label>
+            </div>
           </div>
-          <label class="field">
-            <span>会议识别语言</span>
-            <select id="setMeetingAsrLanguage">
-              <option value="zh" selected>中文（简体）</option>
-              <option value="en">英语（English）</option>
-              <option value="ja">日语（日本語）</option>
-              <option value="ko">韩语（한국어）</option>
-              <option value="auto">自动检测（其他语言）</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>会议背景 / 参会人 / 关注点（可选）</span>
-            <textarea id="setMeetingContext" rows="3" maxlength="4000" placeholder="例如：周会，参会人 Alice、Bob；重点跟进上线时间和风险；不要记录闲聊。"></textarea>
-          </label>
-          <div class="device-hint">仅使用会议转录和这里的背景生成纪要，不会编造未出现的负责人或日期。</div>
+
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>识别与背景</h3>
+                <p class="settings-block-desc">设置会议识别语言和背景信息；背景只用于整理纪要，不会编造未出现的负责人或日期。</p>
+              </div>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>会议识别语言</span>
+                <select id="setMeetingAsrLanguage">
+                  <option value="zh" selected>中文（简体）</option>
+                  <option value="en">英语（English）</option>
+                  <option value="ja">日语（日本語）</option>
+                  <option value="ko">韩语（한국어）</option>
+                  <option value="auto">自动检测（其他语言）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>会议背景 / 参会人 / 关注点（可选）</span>
+                <textarea id="setMeetingContext" rows="3" maxlength="4000" placeholder="例如：周会，参会人 Alice、Bob；重点跟进上线时间和风险；不要记录闲聊。"></textarea>
+                <small class="field-note">仅用于纪要整理；不会改变语音识别模型。</small>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
       <footer class="modal-foot">
@@ -927,7 +1051,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
-  <script src="/static/i18n.js?v=5"></script>
+  <script src="/static/i18n.js?v=6"></script>
   <script src="/static/app.js?v=66"></script>
 </body>
 </html>
