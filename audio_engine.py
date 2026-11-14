@@ -18,7 +18,9 @@ import webrtcvad
 
 from audio_lock import AUDIO_LOCK
 
-SILERO_MODEL = Path(__file__).resolve().parent / "models" / "silero_vad.onnx"
+import sys
+
+SILERO_MODEL = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "models" / "silero_vad.onnx"
 
 SAMPLE_RATE = 16000
 FRAME_MS = 30

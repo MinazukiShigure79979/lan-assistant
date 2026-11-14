@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import os
 import queue
 import sys
 import threading
@@ -15,8 +16,10 @@ import time
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-LOG = ROOT / "data" / "overlay.log"
+FROZEN = bool(getattr(sys, "frozen", False))
+ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
+_DATA = (Path(os.environ.get("LOCALAPPDATA", "")) / "Lan.Assistant" / "data") if FROZEN else (ROOT / "data")
+LOG = _DATA / "overlay.log"
 LOG.parent.mkdir(parents=True, exist_ok=True)
 try:
     if LOG.exists() and LOG.stat().st_size > 1_000_000:
@@ -282,9 +285,14 @@ class Overlay:
         self.root.mainloop()
 
 
+def main() -> int:
+    Overlay().run()
+    return 0
+
+
 if __name__ == "__main__":
     try:
-        Overlay().run()
+        raise SystemExit(main())
     except Exception:
         import traceback
 

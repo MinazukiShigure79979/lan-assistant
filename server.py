@@ -35,6 +35,7 @@ import hardware
 import models
 import setup_manager
 import startup
+import version
 from audio_engine import AudioEngine, list_devices, resolve_devices
 from brain import Brain, BrainError, fallback_suggestions
 from transcriber import Transcriber
@@ -49,8 +50,9 @@ from voice_input import (
 )
 
 APP_NAME = "Lan.Assistant"
-APP_VERSION = "1.0.0"
-STATIC_DIR = config.ROOT / "static"
+APP_VERSION = version.VERSION
+APP_DISPLAY_VERSION = version.DISPLAY_VERSION
+STATIC_DIR = config.RESOURCE_DIR / "static"
 DEFAULT_PORT = 8765
 
 
@@ -1052,24 +1054,32 @@ class App:
         self.voice_overlay_proc = None
         return False
 
-    def start_voice_overlay(self) -> bool:
-        if not self.settings.get("voice_overlay_enabled", True):
-            return False
-        if self.voice_overlay_running():
-            return True
-        script = config.ROOT / "voice_overlay.py"
+    def _helper_command(self, script_name: str, frozen_flag: str) -> Optional[list[str]]:
+        if getattr(sys, "frozen", False):
+            return [sys.executable, frozen_flag]
+        script = config.ROOT / script_name
         if not script.exists():
-            return False
+            return None
         pythonw = Path(sys.executable)
         if pythonw.name.lower() == "python.exe":
             candidate = pythonw.with_name("pythonw.exe")
             if candidate.exists():
                 pythonw = candidate
+        return [str(pythonw), str(script)]
+
+    def start_voice_overlay(self) -> bool:
+        if not self.settings.get("voice_overlay_enabled", True):
+            return False
+        if self.voice_overlay_running():
+            return True
+        command = self._helper_command("voice_overlay.py", "--voice-overlay")
+        if command is None:
+            return False
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
         try:
             self.voice_overlay_proc = subprocess.Popen(
-                [str(pythonw), str(script)],
+                command,
                 cwd=str(config.ROOT),
                 env=env,
                 stdout=subprocess.DEVNULL,
@@ -1929,19 +1939,14 @@ class App:
     def start_overlay(self) -> bool:
         if self.overlay_running():
             return True
-        script = config.ROOT / "subtitle_overlay.py"
-        if not script.exists():
+        command = self._helper_command("subtitle_overlay.py", "--subtitle-overlay")
+        if command is None:
             return False
-        pythonw = Path(sys.executable)
-        if pythonw.name.lower() == "python.exe":
-            candidate = pythonw.with_name("pythonw.exe")
-            if candidate.exists():
-                pythonw = candidate
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
         try:
             self.overlay_proc = subprocess.Popen(
-                [str(pythonw), str(script)],
+                command,
                 cwd=str(config.ROOT),
                 env=env,
                 stdout=subprocess.DEVNULL,
@@ -2572,6 +2577,7 @@ $speaker.Dispose()
             suggestion = dict(self.suggestion) if self.suggestion else None
         return {
             "version": APP_VERSION,
+            "display_version": APP_DISPLAY_VERSION,
             "server_time": time.time(),
             "mode": self.mode,
             "overlay_running": self.overlay_running(),
@@ -2740,6 +2746,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "ok": True,
                     "version": APP_VERSION,
+                    "display_version": APP_DISPLAY_VERSION,
                     "asr": {"status": self.app.asr_status, "message": self.app.asr_message,
                             "device": self.app.transcriber.device, "compute_type": self.app.transcriber.compute_type},
                     "llm": {"status": self.app.llm_status, "message": self.app.llm_message,

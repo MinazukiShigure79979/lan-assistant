@@ -27,6 +27,7 @@ from typing import Any, Optional
 import config
 import hardware
 import models
+import version
 
 SETUP_PATH = config.DATA_DIR / "setup.json"
 OLLAMA_ZIP_URL = "https://ollama.com/download/ollama-windows-amd64.zip"
@@ -258,6 +259,8 @@ class SetupManager:
             return {
                 "required": self._required,
                 "complete": not self._required,
+                "version": version.VERSION,
+                "display_version": version.DISPLAY_VERSION,
                 "stage": self._stage,
                 "progress": round(max(0.0, min(1.0, self._progress)), 4),
                 "message": self._message,

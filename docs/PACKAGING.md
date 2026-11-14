@@ -1,6 +1,26 @@
 # 迁移打包要求（待执行）
 
-> 状态：**已记录，暂不执行**。当前开发运行方式仍是 Python + `.venv`；迁移到新机器时再打包。
+> 状态：**脚本已预置，暂不执行打包**。当前版本 **v1.0**；等主程序功能测试通过后再生成安装包。
+
+## 一键打包
+
+```powershell
+# 只生成免安装目录
+.\scripts\build_release.ps1 -SkipInstaller
+
+# 生成安装包（需要 Inno Setup 6）
+.\scripts\build_release.ps1
+```
+
+产物：
+
+```text
+dist\Lan.Assistant\
+dist\installer\Lan.Assistant-Setup-v1.0.exe
+dist\installer\release.json
+```
+
+安装包不包含 Ollama 和模型；首次启动下载。详见 [`scripts/README.md`](../scripts/README.md)。
 
 ## 目标
 

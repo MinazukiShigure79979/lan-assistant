@@ -1,5 +1,7 @@
 # Lan.Assistant
 
+当前版本：**v1.0**（版本号统一维护在 `version.py`）
+
 Lan.Assistant 是运行在 Windows 电脑上的实时语音助手：既能做通话副驾，也能做看剧/看视频时的双语字幕。它从「系统声音」里听对方或视频的声音，从麦克风听你说话，实时转写并用本地或 API 大模型生成回答或中文字幕。
 
 **音频只在本机处理，不上传、不保存录音。** 默认的本地模式连文字也不上传；如果主动切换到 DeepSeek 等 API，只有对话文字会发给你选择的服务商。
@@ -589,7 +591,7 @@ lan-assistant/
 
 ## 重新安装 / 修复
 
-> 迁移到新机器时，所有 Python 启动脚本应打包为 Windows EXE，不能要求用户安装 Python。具体清单见 [`docs/PACKAGING.md`](docs/PACKAGING.md)。当前阶段仍使用 `.venv` 开发和运行。
+> 迁移到新机器时使用 PyInstaller 打包为 Windows EXE，不要求安装 Python。打包和安装包脚本见 [`scripts/README.md`](scripts/README.md)，当前版本号为 **v1.0**；先不执行打包，等主程序功能测试通过后再生成安装包。
 
 当前机器上的环境已经装好。如果以后移动了目录、删除了模型，或需要重装，按下面做：
 

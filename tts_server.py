@@ -14,14 +14,16 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+FROZEN = bool(getattr(sys, "frozen", False))
+ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
+DATA = (Path(os.environ.get("LOCALAPPDATA", "")) / "Lan.Assistant" / "data") if FROZEN else (ROOT / "data")
 PORT = 8766
 CREATE_NO_WINDOW = 0x08000000
 
 _log = None
 try:
-    (ROOT / "data").mkdir(exist_ok=True)
-    _log = (ROOT / "data" / "tts.log").open("a", encoding="utf-8", buffering=1)
+    DATA.mkdir(parents=True, exist_ok=True)
+    _log = (DATA / "tts.log").open("a", encoding="utf-8", buffering=1)
     sys.stdout = _log
     sys.stderr = _log
 except Exception:

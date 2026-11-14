@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import threading
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -11,9 +12,12 @@ from typing import Any
 
 import api_secrets
 
-ROOT = Path(__file__).resolve().parent
+FROZEN = bool(getattr(sys, "frozen", False))
+_SCRIPT_ROOT = Path(__file__).resolve().parent
+ROOT = Path(sys.executable).resolve().parent if FROZEN else _SCRIPT_ROOT
+RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", ROOT))
 LOCAL_APP_DIR = Path(os.environ.get("LOCALAPPDATA", "")) / "Lan.Assistant" if os.environ.get("LOCALAPPDATA") else Path.home() / "AppData" / "Local" / "Lan.Assistant"
-DATA_DIR = ROOT / "data"
+DATA_DIR = (LOCAL_APP_DIR / "data") if FROZEN else (ROOT / "data")
 SESSIONS_DIR = DATA_DIR / "sessions"
 VOICE_HISTORY_PATH = DATA_DIR / "voice_history.json"
 _PROJECT_MODELS_DIR = ROOT / "models"
@@ -21,7 +25,7 @@ _PROJECT_HAS_MODELS = bool(
     list(_PROJECT_MODELS_DIR.glob("faster-whisper-*/model.bin"))
     or list(_PROJECT_MODELS_DIR.glob("llm/*.gguf"))
 )
-MODELS_DIR = _PROJECT_MODELS_DIR if _PROJECT_HAS_MODELS else LOCAL_APP_DIR / "models"
+MODELS_DIR = (LOCAL_APP_DIR / "models") if FROZEN or not _PROJECT_HAS_MODELS else _PROJECT_MODELS_DIR
 PROFILE_PATH = DATA_DIR / "profile.json"
 SETTINGS_PATH = DATA_DIR / "settings.json"
 ASR_MODEL_DIR = MODELS_DIR / "faster-whisper-large-v3-turbo"
@@ -29,7 +33,9 @@ LLM_MODEL_PATH_35 = MODELS_DIR / "llm" / "Qwen3.5-9B-Q4_K_M.gguf"
 LLM_MODEL_PATH_25 = MODELS_DIR / "llm" / "Qwen2.5-7B-Instruct-Q4_K_M.gguf"
 LLM_MODEL_PATH = LLM_MODEL_PATH_35
 _PROJECT_OLLAMA_DIR = ROOT / "tools" / "ollama"
-OLLAMA_DIR = _PROJECT_OLLAMA_DIR if (_PROJECT_OLLAMA_DIR / "ollama.exe").exists() else LOCAL_APP_DIR / "ollama"
+OLLAMA_DIR = (LOCAL_APP_DIR / "ollama") if FROZEN else (
+    _PROJECT_OLLAMA_DIR if (_PROJECT_OLLAMA_DIR / "ollama.exe").exists() else LOCAL_APP_DIR / "ollama"
+)
 OLLAMA_BIN = OLLAMA_DIR / "ollama.exe"
 OLLAMA_MODELS_DIR = MODELS_DIR / "ollama"
 

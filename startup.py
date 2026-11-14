@@ -11,7 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
+RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", ROOT))
 APP_NAME = "Lan.Assistant"
 SHORTCUT_NAME = "Lan.Assistant.lnk"
 CREATE_NO_WINDOW = 0x08000000
@@ -27,6 +28,8 @@ def shortcut_path() -> Path:
 
 
 def _pythonw() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable)
     candidate = ROOT / ".venv" / "Scripts" / "pythonw.exe"
     if candidate.exists():
         return candidate
@@ -81,14 +84,16 @@ def set_enabled(enabled: bool) -> tuple[bool, str]:
         return False, str(exc)
     pythonw = _pythonw()
     tray = ROOT / "tray.py"
-    icon = ROOT / "static" / "favicon.ico"
+    icon = RESOURCE_ROOT / "static" / "favicon.ico"
+    frozen = bool(getattr(sys, "frozen", False))
+    arguments = "" if frozen else (chr(34) + str(tray) + chr(34))
     script = (
         "$ErrorActionPreference = 'Stop'\n"
         "try {\n"
         "$sh = New-Object -ComObject WScript.Shell\n"
         f"$lnk = $sh.CreateShortcut({_ps_quote(target)})\n"
         f"$lnk.TargetPath = {_ps_quote(pythonw)}\n"
-        f"$lnk.Arguments = {_ps_quote(chr(34) + str(tray) + chr(34))}\n"
+        f"$lnk.Arguments = {_ps_quote(arguments)}\n"
         f"$lnk.WorkingDirectory = {_ps_quote(ROOT)}\n"
         f"$lnk.IconLocation = {_ps_quote(str(icon) + ',0')}\n"
         f"$lnk.Description = {_ps_quote(APP_NAME)}\n"

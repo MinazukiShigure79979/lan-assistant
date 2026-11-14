@@ -22,6 +22,8 @@ htmlcov/
 build/
 dist/
 *.spec
+!Lan.Assistant.spec
+*.egg-info/
 
 # Local secrets
 .env

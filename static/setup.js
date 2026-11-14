@@ -190,6 +190,8 @@
 
   function sync(state) {
     current = state;
+    const versionLabel = document.getElementById("setupVersion");
+    if (versionLabel && state.display_version) versionLabel.textContent = state.display_version;
     if (!state.required) {
       showPanel(els.done);
       setStep("start");

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import os
 import sys
 import threading
 import time
@@ -16,8 +17,10 @@ import traceback
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-LOG = ROOT / "data" / "voice-overlay.log"
+FROZEN = bool(getattr(sys, "frozen", False))
+ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
+_DATA = (Path(os.environ.get("LOCALAPPDATA", "")) / "Lan.Assistant" / "data") if FROZEN else (ROOT / "data")
+LOG = _DATA / "voice-overlay.log"
 LOG.parent.mkdir(parents=True, exist_ok=True)
 try:
     if LOG.exists() and LOG.stat().st_size > 1_000_000:
@@ -291,5 +294,10 @@ class VoiceWindow:
         self.root.mainloop()
 
 
-if __name__ == "__main__":
+def main() -> int:
     VoiceWindow().run()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

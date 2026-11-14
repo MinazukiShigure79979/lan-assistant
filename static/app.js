@@ -38,6 +38,8 @@
     hardwareRecommendation: null,
     models: { whisper: [], llm: [] },
     modelManagement: null,
+    version: "",
+    displayVersion: "",
     profileDirty: false,
     profileSaving: false,
     profileSaveTimer: null,
@@ -46,6 +48,7 @@
 
   const els = {
     alertWrap: $("#alerts"),
+    appVersionLabel: $("#appVersionLabel"),
     profileName: $("#profileName"),
     profileGoal: $("#profileGoal"),
     profileAvatar: $("#profileAvatar"),
@@ -342,6 +345,11 @@
   }
 
   function applyState(data) {
+    state.version = data.version || "";
+    state.displayVersion = data.display_version || "";
+    if (els.appVersionLabel && state.displayVersion) {
+      els.appVersionLabel.textContent = state.displayVersion;
+    }
     state.profile = data.profile || {};
     state.settings = data.settings || {};
     state.hardware = data.hardware || {};

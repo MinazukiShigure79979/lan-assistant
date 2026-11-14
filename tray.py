@@ -16,9 +16,12 @@ import time
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+FROZEN = bool(getattr(sys, "frozen", False))
+ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
+RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", ROOT))
 os.chdir(ROOT)
-(DATA := ROOT / "data").mkdir(parents=True, exist_ok=True)
+DATA = (Path(os.environ.get("LOCALAPPDATA", "")) / "Lan.Assistant" / "data") if FROZEN else (ROOT / "data")
+DATA.mkdir(parents=True, exist_ok=True)
 
 # pythonw.exe has no stdout/stderr; capture all logs for troubleshooting.
 _log_path = DATA / "server.log"
@@ -64,16 +67,20 @@ def _start_tts_helper() -> subprocess.Popen | None:
     except Exception:
         pass
     script = ROOT / "tts_server.py"
-    if not script.exists():
-        return None
-    pythonw = Path(sys.executable)
-    if pythonw.name.lower() == "python.exe":
-        candidate = pythonw.with_name("pythonw.exe")
-        if candidate.exists():
-            pythonw = candidate
+    if FROZEN:
+        command = [sys.executable, "--tts-server"]
+    else:
+        if not script.exists():
+            return None
+        pythonw = Path(sys.executable)
+        if pythonw.name.lower() == "python.exe":
+            candidate = pythonw.with_name("pythonw.exe")
+            if candidate.exists():
+                pythonw = candidate
+        command = [str(pythonw), str(script)]
     try:
         return subprocess.Popen(
-            [str(pythonw), str(script)],
+            command,
             cwd=str(ROOT),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -195,7 +202,7 @@ def main() -> int:
         "notes": bool(app.meeting_notes),
     }
 
-    icon_image = Image.open(ROOT / "static" / "tray-icon.png").convert("RGBA")
+    icon_image = Image.open(RESOURCE_ROOT / "static" / "tray-icon.png").convert("RGBA")
     icon_holder: dict[str, pystray.Icon] = {}
     quitting = threading.Event()
 
@@ -429,4 +436,16 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if "--tts-server" in sys.argv:
+        from tts_server import main as tts_main
+
+        raise SystemExit(tts_main())
+    if "--voice-overlay" in sys.argv:
+        from voice_overlay import main as voice_overlay_main
+
+        raise SystemExit(voice_overlay_main())
+    if "--subtitle-overlay" in sys.argv:
+        from subtitle_overlay import main as subtitle_overlay_main
+
+        raise SystemExit(subtitle_overlay_main())
     raise SystemExit(main())
