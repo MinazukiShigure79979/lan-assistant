@@ -1247,9 +1247,15 @@ dialog.modal::backdrop {
 #settingsDialog .settings-block .check-grid {
   grid-template-columns: minmax(0, 1fr);
 }
-#settingsDialog .settings-block .form-grid { gap: 14px; }
+#settingsDialog .settings-block .form-grid { gap: 16px; }
 #settingsDialog .settings-block .form-grid.compact { margin-top: 0; }
-#settingsDialog .settings-block .check-grid { gap: 9px; margin-top: 10px; }
+#settingsDialog .settings-block .check-grid { gap: 11px; margin-top: 10px; }
+/* Keep checkbox groups and select/input groups from touching each other. */
+#settingsDialog .settings-block > .check-grid + .form-grid,
+#settingsDialog .settings-block > .check-grid + .form-grid.compact,
+#settingsDialog .settings-block > .form-grid + .check-grid {
+  margin-top: 18px;
+}
 #settingsDialog .settings-block > .check { margin-top: 4px; }
 #settingsDialog .settings-block .field.span-2,
 #settingsDialog .settings-block .check.span-2 { grid-column: auto; }
