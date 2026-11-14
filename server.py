@@ -1885,6 +1885,35 @@ class App:
             self._translation_timer.daemon = True
             self._translation_timer.start()
 
+    def _subtitle_dialogue_context(self, before_turn_id: str = "", limit: int = 6) -> str:
+        """Previous subtitle lines, used only to keep the translation coherent."""
+        with self._turns_lock:
+            rows = [
+                dict(turn) for turn in self.turns
+                if turn.get("speaker") == "other" and str(turn.get("en", "") or "").strip()
+            ]
+        if before_turn_id:
+            for index, row in enumerate(rows):
+                if str(row.get("id", "")) == str(before_turn_id):
+                    rows = rows[:index]
+                    break
+        rows = rows[-max(1, limit):]
+        if not rows:
+            return ""
+        lines = [
+            "RECENT SUBTITLE DIALOGUE (context only; do not translate, quote or continue it):",
+            "Use it only to keep names, pronouns, terminology and conversational flow consistent.",
+        ]
+        for index, row in enumerate(rows, 1):
+            en = str(row.get("en", "") or "").strip()[:450]
+            translated = str(row.get("zh", "") or "").strip()[:450]
+            if not en:
+                continue
+            lines.append(f"[{index}] SOURCE: {en}")
+            if translated:
+                lines.append(f"     TRANSLATION: {translated}")
+        return "\n".join(lines) if len(lines) > 2 else ""
+
     def _invalidate_partial_translation(self) -> None:
         with self.lock:
             self._partial_translate_gen += 1
@@ -1940,7 +1969,11 @@ class App:
             if target not in ("zh", "en", "ja", "ko"):
                 target = "zh"
             try:
-                zh = self.brain.translate(str(item.get("text", "")), target)
+                zh = self.brain.translate(
+                    str(item.get("text", "")),
+                    target,
+                    dialogue_context=self._subtitle_dialogue_context(limit=4),
+                )
             except Exception:
                 continue
             if not zh:
@@ -1967,6 +2000,7 @@ class App:
             ][-4:]
         if not pending:
             return
+        dialogue_context = self._subtitle_dialogue_context(str(pending[0].get("id", "")), 6)
         try:
             target = (
                 str(self.settings.get("translate_target_language", "zh") or "zh")
@@ -1974,7 +2008,9 @@ class App:
                 else "zh"
             )
             translations = self.brain.translate_many(
-                [str(t.get("en", "")) for t in pending], target
+                [str(t.get("en", "")) for t in pending],
+                target,
+                dialogue_context=dialogue_context,
             )
         except Exception as exc:
             self._emit_error("translate", f"翻译暂时失败：{exc}")

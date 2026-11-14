@@ -536,7 +536,7 @@ class Brain:
         return "\n".join(parts)
 
     # ----------------------------------------------------------------- translate
-    def translate(self, text: str, target: str = "zh") -> str:
+    def translate(self, text: str, target: str = "zh", dialogue_context: str = "") -> str:
         text = (text or "").strip()
         if not text:
             return ""
@@ -552,13 +552,19 @@ class Brain:
             "properties": {"zh": {"type": "string"}},
             "required": ["zh"],
         }
-        context = self._subtitle_context()
+        context_parts = [self._subtitle_context(), dialogue_context]
+        context = "\n\n".join(part for part in context_parts if part)
         system = (
             f"You are a professional interpreter. Translate the utterance inside <text> into {target_label}. "
             "The source may be English, Japanese, Korean, Chinese or another language. "
             "Preserve the tone and implied meaning. Do not explain, comment, continue the conversation, "
             "or add anything else. Return only JSON: {\"zh\":\"...\"}"
         )
+        if dialogue_context:
+            system += (
+                "\nThe RECENT SUBTITLE DIALOGUE block is prior context only. Do not translate, quote, or repeat it. "
+                "Use it to keep names, pronouns, omitted subjects, terminology and conversational flow consistent."
+            )
         if context:
             system = context + "\n\n" + system
         messages = [
@@ -593,13 +599,18 @@ class Brain:
         except Exception:
             return ""
 
-    def translate_many(self, texts: list[str], target: str = "zh") -> list[str]:
+    def translate_many(
+        self,
+        texts: list[str],
+        target: str = "zh",
+        dialogue_context: str = "",
+    ) -> list[str]:
         """Translate several short turns in one call (used to backfill subtitles)."""
         cleaned = [str(t or "").strip() for t in texts]
         if not cleaned:
             return []
         if len(cleaned) == 1:
-            return [self.translate(cleaned[0], target)]
+            return [self.translate(cleaned[0], target, dialogue_context=dialogue_context)]
         labels = {
             "zh": "natural, colloquial Simplified Chinese",
             "en": "natural English",
@@ -620,13 +631,21 @@ class Brain:
             },
             "required": ["zh"],
         }
-        context = self._subtitle_context()
+        context = "\n\n".join(
+            part for part in (self._subtitle_context(), dialogue_context) if part
+        )
         system = (
             f"Translate each numbered utterance inside <text> into {target_label}. "
             "The source may be English, Japanese, Korean, Chinese or another language. Keep the same order. "
             "Each result must contain only the translation, with no number, no explanation, and no added "
             f'conversation. Return strict JSON: {{"zh":["..."]}} with exactly {len(cleaned)} strings.'
         )
+        if dialogue_context:
+            system += (
+                "\nThe RECENT SUBTITLE DIALOGUE block is prior context only. Do not translate, quote, or repeat it. "
+                "Use it to keep names, pronouns, omitted subjects, terminology and conversational flow consistent, "
+                "and avoid making each numbered line sound like an isolated machine translation."
+            )
         if context:
             system = context + "\n\n" + system
         messages = [
@@ -652,7 +671,7 @@ class Brain:
         for index, value in enumerate(result):
             if not value:
                 try:
-                    result[index] = self.translate(cleaned[index], target)
+                    result[index] = self.translate(cleaned[index], target, dialogue_context=dialogue_context)
                 except Exception:
                     result[index] = ""
         return result
