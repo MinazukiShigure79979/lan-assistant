@@ -40,6 +40,8 @@
     hardwareRecommendation: null,
     models: { whisper: [], llm: [] },
     modelManagement: null,
+    sessions: null,
+    sessionOpen: null,
     version: "",
     displayVersion: "",
     profileDirty: false,
@@ -86,6 +88,17 @@
     settingsSaveStatus: $("#settingsSaveStatus"),
     btnRestartApp: $("#btnRestartApp"),
     setRunAsAdmin: $("#setRunAsAdmin"),
+    sessionList: $("#sessionList"),
+    sessionSummary: $("#sessionSummary"),
+    sessionTypeFilter: $("#sessionTypeFilter"),
+    sessionDeleteMode: $("#sessionDeleteMode"),
+    sessionDeleteDays: $("#sessionDeleteDays"),
+    sessionDialog: $("#sessionDialog"),
+    sessionDialogKicker: $("#sessionDialogKicker"),
+    sessionDialogTitle: $("#sessionDialogTitle"),
+    sessionDialogMeta: $("#sessionDialogMeta"),
+    sessionDialogBody: $("#sessionDialogBody"),
+    sessionDialogState: $("#sessionDialogState"),
     settingsTabs: $("#settingsTabs"),
     settingsScopeHint: $("#settingsScopeHint"),
     setOtherDevice: $("#setOtherDevice"),
@@ -2515,15 +2528,241 @@
     }
   }
 
-  async function openSettings(tab = state.mode) {
-    await flushMediaPreset();
+  const SESSION_MODE_LABELS = {
+    call: "通话副驾",
+    translate: "听读翻译",
+    meeting: "会议纪要",
+    unknown: "未分类",
+  };
+
+  function formatSessionDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value || "");
+    return date.toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function formatSessionBytes(bytes) {
+    const value = Number(bytes || 0);
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function sessionSpeakerLabel(turn) {
+    if (turn.speaker === "me") return "我";
+    if (turn.speaker_label) return String(turn.speaker_label);
+    return "对方";
+  }
+
+  function renderSessions() {
+    if (!els.sessionList) return;
+    const data = state.sessions;
+    if (!data) {
+      els.sessionList.replaceChildren(make("div", "session-empty", "正在读取会话…"));
+      return;
+    }
+    const filter = els.sessionTypeFilter ? els.sessionTypeFilter.value : "all";
+    const all = Array.isArray(data.sessions) ? data.sessions : [];
+    const items = filter === "all" ? all : all.filter((row) => row.mode === filter);
+    if (els.sessionSummary) {
+      els.sessionSummary.textContent =
+        `${data.total || 0} 个会话 · ${formatSessionBytes(data.total_size)}` +
+        (filter === "all" ? "" : ` · 当前显示 ${items.length} 个`);
+    }
+    els.sessionList.replaceChildren();
+    if (!items.length) {
+      els.sessionList.appendChild(
+        make("div", "session-empty", filter === "all" ? "还没有保存的会话。" : "这个类型下没有会话。")
+      );
+      return;
+    }
+    for (const row of items) {
+      const item = make("div", "session-row");
+      const main = make("div", "session-row-main");
+      const title = make("div", "session-row-title");
+      title.appendChild(
+        make("span", `session-type ${row.mode || "unknown"}`, SESSION_MODE_LABELS[row.mode] || "未分类")
+      );
+      title.appendChild(make("b", "", row.title || "未命名会话"));
+      if (row.active) title.appendChild(make("span", "session-current", "记录中"));
+      main.appendChild(title);
+      const duration = Number(row.duration_s || 0);
+      const durationText =
+        duration >= 60 ? `${Math.floor(duration / 60)} 分 ${Math.round(duration % 60)} 秒` : `${duration.toFixed(1)} 秒`;
+      main.appendChild(
+        make(
+          "div",
+          "session-row-meta",
+          `${formatSessionDate(row.started_at)} · ${row.turns || 0} 轮 · ${durationText} · ${formatSessionBytes(row.size_bytes)}`
+        )
+      );
+      item.appendChild(main);
+      const actions = make("div", "session-row-actions");
+      const open = make("button", "btn btn-tiny", "打开");
+      open.type = "button";
+      open.addEventListener("click", () => openSessionDetail(row.id));
+      actions.appendChild(open);
+      const del = make("button", "btn btn-tiny session-danger", "删除");
+      del.type = "button";
+      del.disabled = !!row.active;
+      del.addEventListener("click", () => deleteSessionById(row.id));
+      actions.appendChild(del);
+      item.appendChild(actions);
+      els.sessionList.appendChild(item);
+    }
+  }
+
+  async function loadSessions() {
+    if (!els.sessionList) return;
+    try {
+      state.sessions = await api("/api/sessions");
+      renderSessions();
+    } catch (err) {
+      els.sessionList.replaceChildren(make("div", "session-empty", `读取失败：${err.message}`));
+    }
+  }
+
+  function appendSessionNotes(container, notes) {
+    if (!notes || typeof notes !== "object") return;
+    const box = make("div", "session-notes");
+    box.appendChild(make("h4", "", "会议纪要"));
+    if (notes.summary) box.appendChild(make("p", "", String(notes.summary)));
+    const section = (title, values) => {
+      const rows = Array.isArray(values) ? values.filter(Boolean) : [];
+      if (!rows.length) return;
+      box.appendChild(make("h4", "", title));
+      const list = make("ul", "");
+      for (const value of rows) list.appendChild(make("li", "", String(value)));
+      box.appendChild(list);
+    };
+    section("要点", notes.key_points);
+    section("决定", notes.decisions);
+    section(
+      "待办",
+      (Array.isArray(notes.action_items) ? notes.action_items : []).map((item) => {
+        if (typeof item === "string") return item;
+        const parts = [item.task, item.owner, item.due].filter(Boolean);
+        return parts.join(" · ");
+      })
+    );
+    section("未决问题", notes.open_questions);
+    container.appendChild(box);
+  }
+
+  async function openSessionDetail(id) {
+    if (!els.sessionDialog) return;
+    els.sessionDialogBody.replaceChildren(make("div", "session-empty", "正在读取会话…"));
+    els.sessionDialogTitle.textContent = "历史会话";
+    els.sessionDialogMeta.textContent = "";
+    els.sessionDialogState.textContent = "";
+    try {
+      const data = await api(`/api/sessions/${encodeURIComponent(id)}`);
+      const session = data.session || {};
+      const listed = ((state.sessions && state.sessions.sessions) || []).find((row) => row.id === session.id);
+      session.active = !!(listed && listed.active);
+      state.sessionOpen = session;
+      els.sessionDialogKicker.textContent =
+        `${SESSION_MODE_LABELS[session.mode] || "未分类"} · ${formatSessionDate(session.started_at)}`;
+      els.sessionDialogTitle.textContent = session.title || "历史会话";
+      els.sessionDialogMeta.textContent =
+        `${(session.turns || []).length} 轮 · ${formatSessionBytes(session.size_bytes)} · ${session.id}`;
+      els.sessionDialogBody.replaceChildren();
+      const turns = Array.isArray(session.turns) ? session.turns : [];
+      if (!turns.length) {
+        els.sessionDialogBody.appendChild(make("div", "session-empty", "这个会话没有转录内容。"));
+      } else {
+        for (const turn of turns) {
+          const row = make("div", "session-turn");
+          const head = make("div", "session-turn-head");
+          head.appendChild(make("b", "", sessionSpeakerLabel(turn)));
+          if (turn.ts) {
+            const date = new Date(Number(turn.ts) * 1000);
+            if (!Number.isNaN(date.getTime())) {
+              head.appendChild(make("span", "", date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })));
+            }
+          }
+          if (turn.language) head.appendChild(make("span", "", String(turn.language)));
+          row.appendChild(head);
+          row.appendChild(make("div", "session-turn-text", String(turn.en || "")));
+          if (turn.zh) row.appendChild(make("div", "session-turn-zh", String(turn.zh)));
+          els.sessionDialogBody.appendChild(row);
+        }
+      }
+      appendSessionNotes(els.sessionDialogBody, session.notes);
+      const deleteButton = $("#btnDeleteOpenSession");
+      if (deleteButton) {
+        deleteButton.disabled = session.active;
+        deleteButton.textContent = session.active ? "记录中的会话不能删除" : "删除此会话";
+      }
+      if (!els.sessionDialog.open) els.sessionDialog.showModal();
+    } catch (err) {
+      els.sessionDialogBody.replaceChildren(make("div", "session-empty", `读取失败：${err.message}`));
+      if (!els.sessionDialog.open) els.sessionDialog.showModal();
+    }
+  }
+
+  async function deleteSessionById(id) {
+    if (!window.confirm("删除这个会话？删除后不能恢复。")) return;
+    try {
+      await api("/api/sessions/delete", { method: "POST", body: { ids: [id] } });
+      if (state.sessionOpen && state.sessionOpen.id === id) {
+        state.sessionOpen = null;
+        if (els.sessionDialog.open) els.sessionDialog.close();
+      }
+      await loadSessions();
+      toast("会话已删除", "good");
+    } catch (err) {
+      toast(`删除失败：${err.message}`, "bad");
+    }
+  }
+
+  async function deleteFilteredSessions() {
+    if (!state.sessions) return;
+    const mode = els.sessionDeleteMode ? els.sessionDeleteMode.value : "all";
+    const days = Number(els.sessionDeleteDays ? els.sessionDeleteDays.value : 30) || 30;
+    const cutoff = Date.now() - days * 86400000;
+    const predicted = (state.sessions.sessions || []).filter(
+      (row) => !row.active && (mode === "all" || row.mode === mode) && new Date(row.started_at).getTime() < cutoff
+    ).length;
+    const modeLabel = mode === "all" ? "全部类型" : SESSION_MODE_LABELS[mode] || "全部类型";
+    if (!window.confirm(`删除早于 ${days} 天的「${modeLabel}」会话，共 ${predicted} 个？\n删除后不能恢复。`)) return;
+    const button = $("#btnDeleteSessionsFiltered");
+    if (button) {
+      button.disabled = true;
+      button.textContent = "删除中…";
+    }
+    try {
+      const result = await api("/api/sessions/delete", {
+        method: "POST",
+        body: { older_than_days: days, mode },
+      });
+      await loadSessions();
+      const skipped = (result.skipped_active || []).length;
+      toast(`已删除 ${result.deleted || 0} 个会话${skipped ? `，跳过 ${skipped} 个正在记录的` : ""}`, "good");
+    } catch (err) {
+      toast(`删除失败：${err.message}`, "bad");
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "按条件删除";
+      }
+    }
+  }
+
+  async function openSettings(tab = state.mode) {    await flushMediaPreset();
     try {
       state.models = await api("/api/models?refresh=1");
     } catch (_) {
       // Keep the cached catalog.
     }
     fillSettingsForm();
-    const settingsTab = ["common", "model", "call", "translate", "voice", "meeting"].includes(tab)
+    const settingsTab = ["common", "model", "call", "translate", "voice", "meeting", "sessions"].includes(tab)
       ? tab
       : state.mode;
     applySettingsTab(settingsTab);
@@ -2543,7 +2782,7 @@
   }
 
   function applySettingsTab(tab) {
-    const valid = new Set(["common", "call", "translate", "voice", "meeting", "model"]);
+    const valid = new Set(["common", "call", "translate", "voice", "meeting", "model", "sessions"]);
     const active = valid.has(tab) ? tab : "common";
     state.settingsTab = active;
     for (const section of $$(".settings-section[data-settings-tab]", els.settingsDialog)) {
@@ -2564,8 +2803,11 @@
         ? "全局设置：音频设备、存储和运行环境，对所有工作区生效。"
         : active === "model"
           ? "模型设置：语音识别、语言模型、说话人区分模型，以及本地模型文件管理。"
-          : `功能设置：以下只影响「${labels[active] || active}」。音频设备、识别模型和模型设置在「全局设置 / 模型设置」里。`;
+          : active === "sessions"
+            ? "会话管理：查看、打开和删除本机保存的历史转录；不会上传。"
+            : `功能设置：以下只影响「${labels[active] || active}」。音频设备、识别模型和模型设置在「全局设置 / 模型设置」里。`;
     }
+    if (active === "sessions") loadSessions();
   }
 
   async function closeSettings() {
@@ -3028,6 +3270,28 @@
         if (!els.settingsSaveStatus) return;
         els.settingsSaveStatus.textContent = "管理员权限设置已修改；点击「重启应用」后生效。";
         els.settingsSaveStatus.classList.remove("good", "bad");
+      });
+    }
+    if ($("#btnRefreshSessions")) {
+      $("#btnRefreshSessions").addEventListener("click", loadSessions);
+    }
+    if (els.sessionTypeFilter) {
+      els.sessionTypeFilter.addEventListener("change", renderSessions);
+    }
+    if ($("#btnDeleteSessionsFiltered")) {
+      $("#btnDeleteSessionsFiltered").addEventListener("click", deleteFilteredSessions);
+    }
+    if ($("#btnCloseSessionDialog")) {
+      $("#btnCloseSessionDialog").addEventListener("click", () => els.sessionDialog.close());
+    }
+    if ($("#btnCloseSessionDialogFoot")) {
+      $("#btnCloseSessionDialogFoot").addEventListener("click", () => els.sessionDialog.close());
+    }
+    if ($("#btnDeleteOpenSession")) {
+      $("#btnDeleteOpenSession").addEventListener("click", () => {
+        if (state.sessionOpen && !state.sessionOpen.active) {
+          deleteSessionById(state.sessionOpen.id);
+        }
       });
     }
     els.settingsDialog.addEventListener("close", () => {

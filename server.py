@@ -37,6 +37,7 @@ import diarization
 import hardware
 import language
 import models
+import session_store
 import setup_manager
 import startup
 import version
@@ -2387,6 +2388,7 @@ $speaker.Dispose()
             header = {
                 "type": "session",
                 "started_at": now_iso(),
+                "mode": self.mode,
                 "profile": self.profile,
                 "version": APP_VERSION,
             }
@@ -2517,6 +2519,7 @@ $speaker.Dispose()
         assignments = result.get("assignments") or {}
         with self._turns_lock:
             updated = []
+            saved_turns = []
             for turn in self.turns:
                 label = assignments.get(str(turn.get("id")))
                 if label:
@@ -2525,6 +2528,9 @@ $speaker.Dispose()
                     updated.append(
                         {"id": turn["id"], "speaker_label": str(label)}
                     )
+                    saved_turns.append(dict(turn))
+        for turn in saved_turns:
+            self._save_turn(turn)
         for row in updated:
             self.bus.publish({"type": "turn_update", "data": row})
         with self._turns_lock:
@@ -3267,6 +3273,19 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if path == "/api/sessions":
+            active = self.app.session_path.name if self.app.session_path else ""
+            self._json({"ok": True, **session_store.list_sessions(active)})
+            return
+        if path.startswith("/api/sessions/"):
+            session_id = urllib.parse.unquote(path[len("/api/sessions/"):])
+            try:
+                self._json({"ok": True, "session": session_store.read_session(session_id)})
+            except FileNotFoundError:
+                self._error("会话不存在", 404)
+            except Exception as exc:
+                self._error(f"读取会话失败：{exc}", 400)
+            return
         if path == "/api/setup/state":
             self._json(self.app.setup.public_state())
             return
@@ -3304,6 +3323,36 @@ class Handler(BaseHTTPRequestHandler):
             body = self._body()
         except Exception as exc:
             self._error(str(exc), 400)
+            return
+        if path == "/api/sessions/delete":
+            raw_ids = body.get("ids")
+            ids = [str(value) for value in raw_ids] if isinstance(raw_ids, list) else []
+            try:
+                older = body.get("older_than_days")
+                older = int(older) if older is not None and str(older).strip() != "" else None
+                if older is not None:
+                    older = max(0, min(3650, older))
+            except (TypeError, ValueError):
+                self._error("删除天数无效", 400)
+                return
+            mode = str(body.get("mode", "all") or "all")
+            if mode not in ("all", "call", "translate", "meeting", "unknown"):
+                mode = "all"
+            if not ids and older is None:
+                self._error("请选择要删除的会话，或设置删除条件", 400)
+                return
+            active = self.app.session_path.name if self.app.session_path else ""
+            try:
+                result = session_store.delete_sessions(
+                    ids=ids,
+                    older_than_days=older,
+                    mode=mode,
+                    active_name=active,
+                )
+            except Exception as exc:
+                self._error(f"删除会话失败：{exc}", 400)
+                return
+            self._json({"ok": True, **result})
             return
         if path == "/api/setup/install-ollama":
             started = self.app.setup.install_ollama_async()
