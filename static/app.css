@@ -1140,13 +1140,13 @@ body.mode-translate .partial-bubble { font-size: 17px; }
 .app-foot {
   flex: 0 0 auto;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 26px 9px;
-  color: #4e5f6e;
-  font-size: 9.5px;
+  padding: 0 28px 11px;
+  color: #8094a6;
+  font-size: 11.5px;
   letter-spacing: .01em;
 }
-.app-foot kbd { height: 15px; min-width: 15px; font-size: 8px; }
-.app-foot-right { color: #465563; }
+.app-foot kbd { height: 17px; min-width: 17px; font-size: 9.5px; }
+.app-foot-right { color: #708495; }
 
 /* ------------------------------------------------------------------ modals */
 dialog.modal {
