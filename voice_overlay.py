@@ -144,9 +144,14 @@ class VoiceWindow:
                                         relief="flat", bd=0, padx=12, pady=6,
                                         font=("Microsoft YaHei UI", 9), cursor="hand2")
         self.btn_translated.pack(side="left", padx=(0, 7))
+        self.btn_copy = tk.Button(self.actions, text="复制", command=self.copy,
+                                  bg="#263747", fg=TEXT, activebackground="#34506a",
+                                  relief="flat", bd=0, padx=12, pady=6,
+                                  font=("Microsoft YaHei UI", 9), cursor="hand2")
+        self.btn_copy.pack(side="left", padx=(0, 7))
         self.btn_cancel = tk.Button(self.actions, text="取消", command=self.cancel,
                                     bg="#1b2530", fg=MUTED, activebackground="#26323f",
-                                    relief="flat", bd=0, padx=100, pady=6,
+                                    relief="flat", bd=0, padx=30, pady=6,
                                     font=("Microsoft YaHei UI", 9), cursor="hand2")
         self.btn_cancel.pack(side="right")
 
@@ -264,6 +269,21 @@ class VoiceWindow:
         self.actions.pack_forget()
         self.root.withdraw()
 
+    def copy(self) -> None:
+        text = self.translated.get("1.0", "end").strip() or self.original.get("1.0", "end").strip()
+        if not text:
+            return
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+            self.root.update()
+            self.hint.configure(
+                text="已复制到剪贴板；在游戏/聊天框里按 Ctrl+V 粘贴",
+                fg=AMBER,
+            )
+        except Exception as exc:
+            self.hint.configure(text=f"复制失败：{exc}", fg=RED)
+
     def insert(self, which: str) -> None:
         widget = self.original if which == "original" else self.translated
         text = widget.get("1.0", "end").strip()
@@ -272,10 +292,22 @@ class VoiceWindow:
         try:
             result = _post(INSERT_URL, {"text": text})
             if not result.get("ok"):
-                self.hint.configure(text=str(result.get("error", "") or "插入失败"), fg=RED)
+                # Games and custom DirectX chat boxes reject synthetic input.
+                # Keep the reviewed text available for Ctrl+V instead of
+                # silently losing it.
+                self.copy()
+                error = str(result.get("error", "") or "插入失败")
+                self.hint.configure(
+                    text=f"{error}；已复制到剪贴板，请按 Ctrl+V 粘贴",
+                    fg=RED,
+                )
                 return
         except Exception as exc:
-            self.hint.configure(text=f"插入失败：{exc}", fg=RED)
+            self.copy()
+            self.hint.configure(
+                text=f"插入失败：{exc}；已复制到剪贴板，请按 Ctrl+V 粘贴",
+                fg=RED,
+            )
             return
         self.hide()
         self.status = "idle"
