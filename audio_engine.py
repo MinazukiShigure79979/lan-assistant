@@ -28,8 +28,8 @@ FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS // 1000  # 480
 MIN_SPEECH_MS = 320
 DEFAULT_SILENCE_MS = 750
 DEFAULT_MAX_SEGMENT_S = 20
-PARTIAL_EVERY_MS = 1500
-PARTIAL_WINDOW_MS = 8000
+PARTIAL_EVERY_MS = 1000
+PARTIAL_WINDOW_MS = 6000
 
 
 def _device_dict(info: dict[str, Any], is_loopback: bool, is_default: bool = False) -> dict[str, Any]:

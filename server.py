@@ -2073,6 +2073,7 @@ class App:
             engine_settings["silence_ms"] = min(
                 int(self.settings.get("silence_ms", 750)),
                 int(self.settings.get("subtitle_silence_ms", 450)),
+                350,
             )
             engine_settings["max_segment_s"] = min(
                 int(self.settings.get("max_segment_s", 20)),

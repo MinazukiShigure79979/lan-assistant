@@ -14,8 +14,8 @@ import sys
 import threading
 import time
 import urllib.request
+from collections import deque
 from pathlib import Path
-from typing import Optional
 
 FROZEN = bool(getattr(sys, "frozen", False))
 ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
@@ -35,8 +35,8 @@ import tkinter as tk
 import tkinter.font as tkfont
 
 STATE_URL = "http://127.0.0.1:8765/api/subtitle"
-POLL_SECONDS = 0.28
-HIDE_AFTER_SECONDS = 5.5
+POLL_SECONDS = 0.18
+HIDE_AFTER_SECONDS = 6.0
 TRANSPARENT_KEY = "#010203"
 
 
@@ -107,9 +107,9 @@ class Overlay:
         self.screen_w = self.root.winfo_screenwidth()
         self.screen_h = self.root.winfo_screenheight()
         self.width = min(1500, max(820, int(self.screen_w * 0.88)))
-        self.height = 206
+        self.height = 350
         self.x = max(0, (self.screen_w - self.width) // 2)
-        self.y = max(0, self.screen_h - self.height - 58)
+        self.y = max(0, self.screen_h - self.height - 36)
         self.root.geometry(f"{self.width}x{self.height}+{self.x}+{self.y}")
 
         self.canvas = tk.Canvas(
@@ -122,131 +122,117 @@ class Overlay:
         self.canvas.pack(fill="both", expand=True)
         self.font_original = tkfont.Font(family="Segoe UI", size=15, weight="normal")
         self.font_chinese = tkfont.Font(family="Microsoft YaHei UI", size=23, weight="bold")
+        self.font_original_small = tkfont.Font(family="Segoe UI", size=12, weight="normal")
+        self.font_chinese_small = tkfont.Font(family="Microsoft YaHei UI", size=18, weight="bold")
         self._clickthrough_applied = False
 
         self.visible = False
         self.last_turn_id = ""
         self.last_text = ""
         self.last_change = 0.0
-        self.displayed_at = 0.0
-        self.displayed_final = False
-        self.displayed_turn_id = ""
-        self.hold_until = 0.0
-        self.pending_render: Optional[dict] = None
-        self.pending_after = 0.0
+        self.final_lines: deque[dict] = deque(maxlen=3)
+        self.render_key = ""
         self.events: queue.Queue = queue.Queue(maxsize=4)
         self._stop = threading.Event()
         threading.Thread(target=self._poll, name="subtitle-poll", daemon=True).start()
         self.root.after(120, self._consume)
 
-    @staticmethod
-    def _hold_seconds(en: str, zh: str, is_final: bool) -> float:
-        if not is_final:
-            return 0.0
-        if zh:
-            return max(2.4, min(4.2, 1.4 + len(zh) * 0.07 + len(en) * 0.02))
-        return max(2.2, min(3.2, 1.2 + len(en) * 0.025))
-
-    def _show_item(self, item: dict, reset_hold: bool = True) -> None:
-        now = time.time()
-        self.last_text = item["key"]
-        self.last_turn_id = item["turn_id"]
-        self.last_change = now
-        self.displayed_at = now
-        self.displayed_final = not item["is_partial"]
-        self.displayed_turn_id = item["turn_id"]
-        if reset_hold:
-            self.hold_until = now + self._hold_seconds(item["en"], item["zh"], not item["is_partial"])
-        elif item["zh"] and not item["is_partial"]:
-            # Give the newly arrived Chinese line enough reading time too.
-            self.hold_until = max(
-                self.hold_until,
-                now + self._hold_seconds(item["en"], item["zh"], True),
-            )
-        print(
-            f"subtitle {item['turn_id']}{' partial' if item['is_partial'] else ''}: "
-            f"{item['en'][:80]!r} / {item['zh'][:80]!r} stay={self.hold_until - now:.1f}s",
-            flush=True,
-        )
-        self._render(item["en"][:900], item["zh"][:900], partial=item["is_partial"])
-        self.root.geometry(f"{self.width}x{self.height}+{self.x}+{self.y}")
-        self._show()
-
-    def _flush_pending(self) -> None:
-        if self.pending_render is None or time.time() < self.pending_after:
-            return
-        item = self.pending_render
-        self.pending_render = None
-        self._show_item(item)
-
-    def _render(self, original: str, chinese: str, partial: bool = False) -> None:
+    def _render_stack(self, entries: list[dict]) -> None:
         self.canvas.delete("all")
         cx = self.width // 2
         wrap = self.width - 140
-        # Lay out one or two lines without a background, then centre the group.
-        en_item = self.canvas.create_text(
-            cx,
-            0,
-            text=original[:600],
-            font=self.font_original,
-            fill="#e9f1f7",
-            width=wrap,
-            justify="center",
-            anchor="n",
-        )
-        en_box = self.canvas.bbox(en_item) or (0, 0, 0, 30)
-        en_h = max(24, en_box[3] - en_box[1])
-        zh_text = chinese[:600] if chinese else (None if partial else "字幕翻译中…")
-        zh_item = None
-        zh_h = 0
-        if zh_text is not None:
-            zh_item = self.canvas.create_text(
+        count = len(entries)
+        prepared: list[dict] = []
+        total = 0
+        for index, entry in enumerate(entries):
+            is_partial = bool(entry.get("partial"))
+            only_one = count == 1
+            en_font = self.font_original if (only_one or is_partial) else self.font_original_small
+            zh_font = self.font_chinese if (only_one or is_partial) else self.font_chinese_small
+            en_fill = "#f4f8fd" if is_partial or index == count - 1 else "#c7d4e4"
+            zh_fill = "#ffffff" if is_partial or index == count - 1 else "#dce8f6"
+            en = str(entry.get("en", "") or "")[:600]
+            zh = str(entry.get("zh", "") or "")[:600]
+            en_item = self.canvas.create_text(
                 cx,
-                en_h + 8,
-                text=zh_text,
-                font=self.font_chinese,
-                fill="#ffffff",
+                0,
+                text=en,
+                font=en_font,
+                fill=en_fill,
                 width=wrap,
                 justify="center",
                 anchor="n",
             )
-            zh_box = self.canvas.bbox(zh_item) or (0, 0, 0, 32)
-            zh_h = max(30, zh_box[3] - zh_box[1])
-        total = en_h + (8 + zh_h if zh_item is not None else 0)
-        start = max(4, (self.height - total) // 2)
-        self.canvas.move(en_item, 0, start)
-        if zh_item is not None:
-            self.canvas.move(zh_item, 0, start)
-        # A soft dark outline instead of a bar; keeps text legible over bright
-        # scenes while letting the video show through everywhere else.
-        for dx, dy in ((-2, 1), (2, 1), (0, 2), (0, -1)):
-            self.canvas.create_text(
-                cx + dx,
-                start + dy,
-                text=original[:600],
-                font=self.font_original,
-                fill="#000000",
-                width=wrap,
-                justify="center",
-                anchor="n",
-                tags="shadow",
-            )
-            if zh_item is not None:
-                self.canvas.create_text(
-                    cx + dx,
-                    start + en_h + 8 + dy,
-                    text=zh_text,
-                    font=self.font_chinese,
-                    fill="#000000",
+            en_box = self.canvas.bbox(en_item) or (0, 0, 0, 24)
+            en_h = max(20, en_box[3] - en_box[1])
+            zh_item = None
+            zh_h = 0
+            if zh:
+                zh_item = self.canvas.create_text(
+                    cx,
+                    0,
+                    text=zh,
+                    font=zh_font,
+                    fill=zh_fill,
                     width=wrap,
                     justify="center",
                     anchor="n",
-                    tags="shadow",
                 )
+                zh_box = self.canvas.bbox(zh_item) or (0, 0, 0, 26)
+                zh_h = max(24, zh_box[3] - zh_box[1])
+            shadows = []
+            for dx, dy in ((-2, 1), (2, 1), (0, 2), (0, -1)):
+                shadows.append(
+                    self.canvas.create_text(
+                        cx + dx,
+                        dy,
+                        text=en,
+                        font=en_font,
+                        fill="#000000",
+                        width=wrap,
+                        justify="center",
+                        anchor="n",
+                        tags="shadow",
+                    )
+                )
+                if zh:
+                    shadows.append(
+                        self.canvas.create_text(
+                            cx + dx,
+                            dy + en_h + 6,
+                            text=zh,
+                            font=zh_font,
+                            fill="#000000",
+                            width=wrap,
+                            justify="center",
+                            anchor="n",
+                            tags="shadow",
+                        )
+                    )
+            gap = 10 if index < count - 1 else 0
+            prepared.append(
+                {
+                    "en": en_item,
+                    "zh": zh_item,
+                    "shadows": shadows,
+                    "en_h": en_h,
+                    "zh_h": zh_h,
+                    "gap": gap,
+                }
+            )
+            total += en_h + (6 + zh_h if zh_item is not None else 0) + gap
+        y = max(4, (self.height - total) // 2)
+        for block in prepared:
+            self.canvas.move(block["en"], 0, y)
+            if block["zh"] is not None:
+                self.canvas.move(block["zh"], 0, y + block["en_h"] + 6)
+            for shadow in block["shadows"]:
+                self.canvas.move(shadow, 0, y)
+            self.canvas.tag_raise(block["en"])
+            if block["zh"] is not None:
+                self.canvas.tag_raise(block["zh"])
+            y += block["en_h"] + (6 + block["zh_h"] if block["zh"] is not None else 0) + block["gap"]
         self.canvas.tag_lower("shadow")
-        self.canvas.tag_raise(en_item)
-        if zh_item is not None:
-            self.canvas.tag_raise(zh_item)
 
     def _poll(self) -> None:
         while not self._stop.is_set():
@@ -265,7 +251,8 @@ class Overlay:
             time.sleep(POLL_SECONDS)
 
     def _hide(self) -> None:
-        self.pending_render = None
+        self.final_lines.clear()
+        self.render_key = ""
         if self.visible:
             print("hide", flush=True)
             self.root.withdraw()
@@ -292,12 +279,7 @@ class Overlay:
             state = None
         if state is not None:
             self._apply(state)
-        self._flush_pending()
-        if (
-            self.visible
-            and self.pending_render is None
-            and time.time() - self.last_change > HIDE_AFTER_SECONDS
-        ):
+        if self.visible and time.time() - self.last_change > HIDE_AFTER_SECONDS:
             self._hide()
         self.root.after(100, self._consume)
 
@@ -310,52 +292,70 @@ class Overlay:
                 self._hide()
                 return
 
-            partial_state = state.get("partial") or {}
-            partial_text = str(partial_state.get("stable") or partial_state.get("text") or "").strip()
-            if partial_text:
-                en = partial_text
-                zh = str(partial_state.get("zh", "") or "").strip()
-                is_partial = True
-                turn_id = f"partial-{partial_state.get('seq', 0)}"
-            else:
-                latest = state.get("latest")
-                if not latest or latest.get("speaker") != "other":
-                    self._hide()
-                    return
+            latest = state.get("latest")
+            if latest and latest.get("speaker") == "other":
                 en = str(latest.get("en", "") or "").strip()
                 zh = str(latest.get("zh", "") or "").strip()
-                is_partial = False
                 turn_id = str(latest.get("id", ""))
+                if en:
+                    existing = next(
+                        (row for row in self.final_lines if row["turn_id"] == turn_id),
+                        None,
+                    )
+                    if existing is not None:
+                        existing["en"] = en
+                        existing["zh"] = zh
+                    else:
+                        self.final_lines.append(
+                            {"turn_id": turn_id, "en": en, "zh": zh, "partial": False}
+                        )
 
-            if not en:
+            partial_state = state.get("partial") or {}
+            partial_text = str(
+                partial_state.get("stable") or partial_state.get("text") or ""
+            ).strip()
+            partial_item = None
+            if partial_text:
+                latest_en = str((latest or {}).get("en", "") or "").strip()
+                if not (latest_en and (latest_en.startswith(partial_text) or partial_text == latest_en)):
+                    partial_item = {
+                        "turn_id": f"partial-{partial_state.get('seq', 0)}",
+                        "en": partial_text,
+                        "zh": str(partial_state.get("zh", "") or "").strip(),
+                        "partial": True,
+                    }
+
+            finals = list(self.final_lines)
+            if partial_item is not None:
+                # Keep two finalized lines above the live line while speaking.
+                finals = finals[-2:]
+                entries = finals + [partial_item]
+            else:
+                entries = finals[-3:]
+            if not entries:
                 self._hide()
                 return
-            item = {
-                "en": en,
-                "zh": zh,
-                "is_partial": is_partial,
-                "turn_id": turn_id,
-                "key": ("P:" if is_partial else "F:") + en + "\n" + zh,
-            }
-            if item["key"] == self.last_text:
+
+            key = "|".join(
+                f"{'P' if row.get('partial') else 'F'}:{row.get('turn_id')}:{row.get('en')}:{row.get('zh')}"
+                for row in entries
+            )
+            if key == self.render_key:
                 return
-            now = time.time()
-            if self.displayed_final and now < self.hold_until:
-                if not is_partial and turn_id == self.displayed_turn_id:
-                    # The translation for the line already on screen arrived.
-                    self._show_item(item, reset_hold=False)
-                    if self.pending_render is not None:
-                        self.pending_after = self.hold_until
-                    return
-                self.pending_render = item
-                self.pending_after = self.hold_until
-                return
-            if is_partial and now - self.displayed_at < 0.9:
-                self.pending_render = item
-                self.pending_after = self.displayed_at + 0.9
-                return
-            self.pending_render = None
-            self._show_item(item)
+            self.render_key = key
+            self.last_change = time.time()
+            latest_entry = entries[-1]
+            self.last_turn_id = str(latest_entry.get("turn_id", ""))
+            print(
+                f"subtitle stack {len(entries)} "
+                f"{'partial' if latest_entry.get('partial') else 'final'}: "
+                f"{str(latest_entry.get('en', ''))[:70]!r} / "
+                f"{str(latest_entry.get('zh', ''))[:70]!r}",
+                flush=True,
+            )
+            self._render_stack(entries)
+            self.root.geometry(f"{self.width}x{self.height}+{self.x}+{self.y}")
+            self._show()
         except Exception:
             import traceback
 
