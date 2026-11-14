@@ -208,7 +208,14 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "media_title": "",
     "media_context": "",
     "subtitle_style": "natural",
-    "subtitle_silence_ms": 450,
+    "subtitle_silence_ms": 350,
+    "subtitle_max_segment_s": 6,
+    "partial_interval_ms": 800,
+    "partial_window_ms": 6000,
+    "overlay_poll_ms": 150,
+    "translate_delay_ms": 80,
+    "translate_context_turns": 6,
+    "partial_context_turns": 4,
     "overlay_enabled": True,
     "meeting_auto_notes": True,
     "meeting_notes_language": "zh",
@@ -409,7 +416,28 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
         clean["subtitle_style"] = str(clean.get("subtitle_style", "natural") or "natural")
         if clean["subtitle_style"] not in ("natural", "literal", "terminology"):
             clean["subtitle_style"] = "natural"
-        clean["subtitle_silence_ms"] = max(250, min(1200, int(clean.get("subtitle_silence_ms", 450))))
+        clean["subtitle_silence_ms"] = max(200, min(1200, int(clean.get("subtitle_silence_ms", 350))))
+        clean["subtitle_max_segment_s"] = max(
+            3, min(20, int(clean.get("subtitle_max_segment_s", 6)))
+        )
+        clean["partial_interval_ms"] = max(
+            300, min(3000, int(clean.get("partial_interval_ms", 800)))
+        )
+        clean["partial_window_ms"] = max(
+            2000, min(10000, int(clean.get("partial_window_ms", 6000)))
+        )
+        clean["overlay_poll_ms"] = max(
+            80, min(1000, int(clean.get("overlay_poll_ms", 150)))
+        )
+        clean["translate_delay_ms"] = max(
+            0, min(1000, int(clean.get("translate_delay_ms", 80)))
+        )
+        clean["translate_context_turns"] = max(
+            0, min(12, int(clean.get("translate_context_turns", 6)))
+        )
+        clean["partial_context_turns"] = max(
+            0, min(8, int(clean.get("partial_context_turns", 4)))
+        )
         clean["overlay_enabled"] = bool(clean.get("overlay_enabled", True))
         clean["meeting_auto_notes"] = bool(clean.get("meeting_auto_notes", True))
         clean["meeting_notes_language"] = str(clean.get("meeting_notes_language", "zh") or "zh")

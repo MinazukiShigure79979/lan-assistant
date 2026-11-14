@@ -1474,7 +1474,9 @@ class App:
             if self.mode == "translate":
                 with self.lock:
                     self._suggest_gen += 1
-                self._schedule_translation_batch(0.08)
+                self._schedule_translation_batch(
+                    max(0.0, min(1.0, int(self.settings.get("translate_delay_ms", 80)) / 1000.0))
+                )
                 return
             if self.mode == "meeting":
                 if self.settings.get("translate", True):
@@ -1905,6 +1907,9 @@ class App:
 
     def _subtitle_dialogue_context(self, before_turn_id: str = "", limit: int = 6) -> str:
         """Previous subtitle lines, used only to keep the translation coherent."""
+        limit = max(0, min(12, int(limit)))
+        if limit <= 0:
+            return ""
         with self._turns_lock:
             rows = [
                 dict(turn) for turn in self.turns
@@ -1915,7 +1920,7 @@ class App:
                 if str(row.get("id", "")) == str(before_turn_id):
                     rows = rows[:index]
                     break
-        rows = rows[-max(1, limit):]
+        rows = rows[-limit:]
         if not rows:
             return ""
         lines = [
@@ -1990,7 +1995,9 @@ class App:
                 zh = self.brain.translate(
                     str(item.get("text", "")),
                     target,
-                    dialogue_context=self._subtitle_dialogue_context(limit=4),
+                    dialogue_context=self._subtitle_dialogue_context(
+                        limit=max(0, min(8, int(self.settings.get("partial_context_turns", 4))))
+                    ),
                 )
             except Exception:
                 continue
@@ -2018,7 +2025,10 @@ class App:
             ][-4:]
         if not pending:
             return
-        dialogue_context = self._subtitle_dialogue_context(str(pending[0].get("id", "")), 6)
+        dialogue_context = self._subtitle_dialogue_context(
+            str(pending[0].get("id", "")),
+            max(0, min(12, int(self.settings.get("translate_context_turns", 6)))),
+        )
         try:
             target = (
                 str(self.settings.get("translate_target_language", "zh") or "zh")
@@ -2083,19 +2093,22 @@ class App:
         self.capture_error = ""
         self.device_names = {"other": other.get("name", ""), "me": (mic or {}).get("name", "")}
         engine_settings = dict(self.settings)
+        engine_settings["partial_interval_ms"] = max(
+            300, min(3000, int(self.settings.get("partial_interval_ms", 800)))
+        )
+        engine_settings["partial_window_ms"] = max(
+            2000, min(10000, int(self.settings.get("partial_window_ms", 6000)))
+        )
         if self.mode == "call":
             engine_settings["silence_ms"] = int(
                 self.settings.get("call_silence_ms", self.settings.get("silence_ms", 750))
             )
         if self.mode == "translate":
-            engine_settings["silence_ms"] = min(
-                int(self.settings.get("silence_ms", 750)),
-                int(self.settings.get("subtitle_silence_ms", 450)),
-                350,
+            engine_settings["silence_ms"] = max(
+                200, min(1200, int(self.settings.get("subtitle_silence_ms", 350)))
             )
-            engine_settings["max_segment_s"] = min(
-                int(self.settings.get("max_segment_s", 20)),
-                6,
+            engine_settings["max_segment_s"] = max(
+                3, min(20, int(self.settings.get("subtitle_max_segment_s", 6)))
             )
         self.engine.start(other, mic, engine_settings)
         self.capture_running = True
@@ -2962,6 +2975,7 @@ class Handler(BaseHTTPRequestHandler):
                     "capture": self.app.capture_running,
                     "latest": latest,
                     "partial": self.app.partial.get("other"),
+                    "poll_ms": max(80, min(1000, int(self.app.settings.get("overlay_poll_ms", 150)))),
                 }
             )
             return

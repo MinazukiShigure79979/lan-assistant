@@ -185,6 +185,8 @@ class Segmenter:
         silence_ms: int = DEFAULT_SILENCE_MS,
         max_segment_s: int = DEFAULT_MAX_SEGMENT_S,
         partial_enabled: bool = True,
+        partial_every_ms: int = PARTIAL_EVERY_MS,
+        partial_window_ms: int = PARTIAL_WINDOW_MS,
     ) -> None:
         self.speaker = speaker
         self.on_segment = on_segment
@@ -209,9 +211,11 @@ class Segmenter:
         except Exception:
             self.silero = None
             self.vad_kind = "webrtc"
-        self.silence_ms = max(300, int(silence_ms))
-        self.max_segment_ms = max(5000, int(max_segment_s) * 1000)
+        self.silence_ms = max(150, int(silence_ms))
+        self.max_segment_ms = max(2000, int(max_segment_s) * 1000)
         self.partial_enabled = bool(partial_enabled)
+        self.partial_every_ms = max(200, int(partial_every_ms))
+        self.partial_window_ms = max(1000, int(partial_window_ms))
         self.preroll: deque[np.ndarray] = deque(maxlen=10)
         self.frames: list[np.ndarray] = []
         self.active = False
@@ -308,10 +312,10 @@ class Segmenter:
                 self.partial_enabled
                 and self.speech_ms >= 900
                 and self.silence_ms_now < 180
-                and self._frames_since_partial * FRAME_MS >= PARTIAL_EVERY_MS
+                and self._frames_since_partial * FRAME_MS >= self.partial_every_ms
             ):
                 self._frames_since_partial = 0
-                window = max(1, PARTIAL_WINDOW_MS // FRAME_MS)
+                window = max(1, self.partial_window_ms // FRAME_MS)
                 pcm = np.concatenate(self.frames[-window:]).copy()
                 meta = {
                     "seq": self.seq,
@@ -421,6 +425,8 @@ class SourceCapture:
         mic_gain: float = 1.0,
         echo_gate: Any = None,
         echo_guard: bool = False,
+        partial_every_ms: int = PARTIAL_EVERY_MS,
+        partial_window_ms: int = PARTIAL_WINDOW_MS,
     ) -> None:
         self._pa = pa
         self.speaker = speaker
@@ -438,6 +444,8 @@ class SourceCapture:
             silence_ms=silence_ms,
             max_segment_s=max_segment_s,
             partial_enabled=partial_enabled,
+            partial_every_ms=partial_every_ms,
+            partial_window_ms=partial_window_ms,
         )
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -618,6 +626,8 @@ class AudioEngine:
                     silence_ms=int(settings.get("silence_ms", DEFAULT_SILENCE_MS)),
                     max_segment_s=int(settings.get("max_segment_s", DEFAULT_MAX_SEGMENT_S)),
                     partial_enabled=bool(settings.get("partial_asr", True)),
+                    partial_every_ms=int(settings.get("partial_interval_ms", PARTIAL_EVERY_MS)),
+                    partial_window_ms=int(settings.get("partial_window_ms", PARTIAL_WINDOW_MS)),
                     echo_gate=self.echo_gate,
                 )
             )
@@ -638,6 +648,8 @@ class AudioEngine:
                     mic_gain=float(settings.get("mic_gain", 1.0)),
                     echo_gate=self.echo_gate,
                     echo_guard=bool(settings.get("echo_guard", True)),
+                    partial_every_ms=int(settings.get("partial_interval_ms", PARTIAL_EVERY_MS)),
+                    partial_window_ms=int(settings.get("partial_window_ms", PARTIAL_WINDOW_MS)),
                 )
             )
         opened: list[SourceCapture] = []

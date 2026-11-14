@@ -211,6 +211,13 @@
     setMediaContext: $("#setMediaContext"),
     setSubtitleStyle: $("#setSubtitleStyle"),
     setSubtitleSilence: $("#setSubtitleSilence"),
+    setPartialInterval: $("#setPartialInterval"),
+    setPartialWindow: $("#setPartialWindow"),
+    setSubtitleMaxSegment: $("#setSubtitleMaxSegment"),
+    setOverlayPoll: $("#setOverlayPoll"),
+    setTranslateDelay: $("#setTranslateDelay"),
+    setTranslateContext: $("#setTranslateContext"),
+    setPartialContext: $("#setPartialContext"),
     setOverlayEnabled: $("#setOverlayEnabled"),
   };
 
@@ -2205,7 +2212,14 @@
     els.setMediaTitle.value = s.media_title || "";
     els.setMediaContext.value = s.media_context || "";
     els.setSubtitleStyle.value = s.subtitle_style || "natural";
-    els.setSubtitleSilence.value = String(s.subtitle_silence_ms || 450);
+    els.setSubtitleSilence.value = String(s.subtitle_silence_ms || 350);
+    els.setPartialInterval.value = String(s.partial_interval_ms || 800);
+    els.setPartialWindow.value = String(s.partial_window_ms || 6000);
+    els.setSubtitleMaxSegment.value = String(s.subtitle_max_segment_s || 6);
+    els.setOverlayPoll.value = String(s.overlay_poll_ms || 150);
+    els.setTranslateDelay.value = String(s.translate_delay_ms ?? 80);
+    els.setTranslateContext.value = String(s.translate_context_turns ?? 6);
+    els.setPartialContext.value = String(s.partial_context_turns ?? 4);
     els.setOverlayEnabled.checked = s.overlay_enabled !== false;
     els.setMeetingAutoNotes.checked = s.meeting_auto_notes !== false;
     els.setMeetingNotesLanguage.value = s.meeting_notes_language || "zh";
@@ -2435,6 +2449,13 @@
     payload.media_context = els.setMediaContext.value.trim();
     payload.subtitle_style = els.setSubtitleStyle.value;
     payload.subtitle_silence_ms = Number(els.setSubtitleSilence.value);
+    payload.partial_interval_ms = Number(els.setPartialInterval.value);
+    payload.partial_window_ms = Number(els.setPartialWindow.value);
+    payload.subtitle_max_segment_s = Number(els.setSubtitleMaxSegment.value);
+    payload.overlay_poll_ms = Number(els.setOverlayPoll.value);
+    payload.translate_delay_ms = Number(els.setTranslateDelay.value);
+    payload.translate_context_turns = Number(els.setTranslateContext.value);
+    payload.partial_context_turns = Number(els.setPartialContext.value);
     payload.overlay_enabled = els.setOverlayEnabled.checked;
     payload.meeting_auto_notes = els.setMeetingAutoNotes.checked;
     payload.meeting_notes_language = els.setMeetingNotesLanguage.value;

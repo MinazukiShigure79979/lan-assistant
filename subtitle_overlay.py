@@ -134,6 +134,7 @@ class Overlay:
         self.final_lines: deque[dict] = deque(maxlen=3)
         self.expired_turn_ids: set[str] = set()
         self.render_key = ""
+        self.poll_seconds = POLL_SECONDS
         self.events: queue.Queue = queue.Queue(maxsize=4)
         self._stop = threading.Event()
         threading.Thread(target=self._poll, name="subtitle-poll", daemon=True).start()
@@ -262,6 +263,9 @@ class Overlay:
             try:
                 with urllib.request.urlopen(STATE_URL, timeout=0.8) as response:
                     state = json.loads(response.read().decode("utf-8"))
+                if isinstance(state, dict):
+                    poll_ms = int(state.get("poll_ms", 150) or 150)
+                    self.poll_seconds = max(0.08, min(1.0, poll_ms / 1000.0))
             except Exception:
                 state = None
             try:
@@ -270,7 +274,7 @@ class Overlay:
                 self.events.put_nowait(state)
             except Exception:
                 pass
-            time.sleep(POLL_SECONDS)
+            time.sleep(self.poll_seconds)
 
     def _hide(self, clear: bool = True) -> None:
         if clear:
