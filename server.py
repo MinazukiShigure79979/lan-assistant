@@ -31,6 +31,7 @@ except Exception:
     pass
 
 import config
+import diarization
 import hardware
 import language
 import models
@@ -470,6 +471,16 @@ class App:
         self.call_summary: Optional[dict[str, Any]] = None
         self._call_summary_gen = 0
         self.meeting_notes: Optional[dict[str, Any]] = None
+        self._meeting_audio: list[dict[str, Any]] = []
+        self._diarization_thread: Optional[threading.Thread] = None
+        self.diarization_state: dict[str, Any] = {
+            "status": "idle",
+            "progress": 0,
+            "message": "",
+            "error": "",
+            "speakers": 0,
+            "turns": 0,
+        }
         self.capture_running = False
         self.started_at: Optional[float] = None
         self.partial: dict[str, Optional[dict[str, Any]]] = {"other": None, "me": None}
@@ -1472,6 +1483,24 @@ class App:
             self.active_seq[speaker] = int(item["meta"].get("seq", 0)) + 1
             self.bus.publish({"type": "turn", "data": turn})
             self._save_turn(turn)
+        if (
+            speaker == "other"
+            and self.mode == "meeting"
+            and self.settings.get("diarization_enabled", False)
+        ):
+            try:
+                pcm = item.get("pcm")
+                if pcm is not None:
+                    with self._turns_lock:
+                        self._meeting_audio.append(
+                            {
+                                "turn_id": turn["id"],
+                                "pcm": pcm.copy(),
+                                "started_at": float(item["meta"].get("started_at", now) or now),
+                            }
+                        )
+            except Exception:
+                pass
         if speaker == "other":
             self._invalidate_partial_translation()
             self._cancel_continuation(clear=True)
@@ -2098,6 +2127,15 @@ class App:
             self.clear_session()
             if self.mode == "meeting":
                 self.meeting_notes = None
+                self._meeting_audio.clear()
+                self.diarization_state = {
+                    "status": "idle",
+                    "progress": 0,
+                    "message": "",
+                    "error": "",
+                    "speakers": 0,
+                    "turns": 0,
+                }
         self.capture_error = ""
         self.device_names = {"other": other.get("name", ""), "me": (mic or {}).get("name", "")}
         engine_settings = dict(self.settings)
@@ -2325,6 +2363,7 @@ $speaker.Dispose()
         self._call_summary_gen += 1
         self.bus.publish({"type": "call_summary", "data": None})
         self.meeting_notes = None
+        self._meeting_audio.clear()
         self.bus.publish({"type": "meeting_notes", "data": None})
         if was_running:
             # Clearing during a live session used to leave session_path=None,
@@ -2377,6 +2416,123 @@ $speaker.Dispose()
         }
 
     # -------------------------------------------------------------- meeting notes
+    def start_meeting_diarization_async(self) -> Optional[threading.Thread]:
+        if self.mode != "meeting" or not self.settings.get("diarization_enabled", False):
+            return None
+        thread = self._diarization_thread
+        if thread is not None and thread.is_alive():
+            return thread
+
+        def worker() -> None:
+            # Let the last VAD segment land after stop_capture().
+            time.sleep(2.0)
+            try:
+                self.run_meeting_diarization()
+            except Exception as exc:
+                self.diarization_state = {
+                    "status": "error",
+                    "progress": 0,
+                    "message": "说话人区分失败",
+                    "error": str(exc)[:500],
+                    "speakers": 0,
+                    "turns": len(self._meeting_audio),
+                }
+                self.bus.publish({"type": "diarization", "data": self.diarization_state})
+
+        thread = threading.Thread(
+            target=worker,
+            name="meeting-diarization",
+            daemon=True,
+        )
+        self._diarization_thread = thread
+        thread.start()
+        return thread
+
+    def run_meeting_diarization(self) -> dict[str, Any]:
+        """Cluster speakers from final meeting turn audio before notes are made."""
+        if self.mode != "meeting":
+            return {"ok": False, "error": "只有会议纪要工作区可以区分与会人"}
+        if not self.settings.get("diarization_enabled", False):
+            return {"ok": False, "error": "会议纪要没有开启与会人区分"}
+        model_id = str(self.settings.get("diarization_model", diarization.DEFAULT_MODEL) or "")
+        if not diarization.is_ready(model_id):
+            self.diarization_state = {
+                "status": "error",
+                "progress": 0,
+                "message": "说话人区分模型尚未下载",
+                "error": "请先在设置 → 模型（全局）→ 说话人区分中下载模型",
+                "speakers": 0,
+                "turns": 0,
+            }
+            self.bus.publish({"type": "diarization", "data": self.diarization_state})
+            return {"ok": False, "error": "说话人区分模型尚未下载"}
+        with self._turns_lock:
+            items = list(self._meeting_audio)
+        if not items:
+            self.diarization_state = {
+                "status": "error",
+                "progress": 0,
+                "message": "没有可分析的会议语音",
+                "error": "开启区分后需要重新录制会议",
+                "speakers": 0,
+                "turns": 0,
+            }
+            self.bus.publish({"type": "diarization", "data": self.diarization_state})
+            return {"ok": False, "error": "没有可分析的会议语音"}
+
+        def on_progress(progress: int, message: str) -> None:
+            self.diarization_state = {
+                "status": "running",
+                "progress": max(1, min(99, int(progress))),
+                "message": message,
+                "error": "",
+                "speakers": 0,
+                "turns": len(items),
+            }
+            self.bus.publish({"type": "diarization", "data": self.diarization_state})
+
+        on_progress(1, "正在准备说话人分离…")
+        try:
+            result = diarization.diarize_turns(items, model_id, progress=on_progress)
+        except Exception as exc:
+            result = {"ok": False, "error": str(exc)}
+        if not result.get("ok"):
+            self.diarization_state = {
+                "status": "error",
+                "progress": 0,
+                "message": "说话人区分失败",
+                "error": str(result.get("error", ""))[:500],
+                "speakers": 0,
+                "turns": len(items),
+            }
+            self.bus.publish({"type": "diarization", "data": self.diarization_state})
+            return {"ok": False, "error": self.diarization_state["error"]}
+        assignments = result.get("assignments") or {}
+        with self._turns_lock:
+            updated = []
+            for turn in self.turns:
+                label = assignments.get(str(turn.get("id")))
+                if label:
+                    turn["speaker_label"] = str(label)
+                    turn["updated_at"] = time.time()
+                    updated.append(
+                        {"id": turn["id"], "speaker_label": str(label)}
+                    )
+        for row in updated:
+            self.bus.publish({"type": "turn_update", "data": row})
+        with self._turns_lock:
+            self._meeting_audio.clear()
+        self.diarization_state = {
+            "status": "ready",
+            "progress": 100,
+            "message": f"已区分 {result.get('speakers', 0)} 位与会人",
+            "error": "",
+            "speakers": int(result.get("speakers", 0) or 0),
+            "turns": len(items),
+        }
+        self.bus.publish({"type": "diarization", "data": self.diarization_state})
+        return {"ok": True, **self.diarization_state, "assignments": assignments}
+
     def _meeting_lines(self) -> list[str]:
         with self._turns_lock:
             turns = [dict(t) for t in self.turns]
@@ -2386,6 +2542,8 @@ $speaker.Dispose()
             offset = max(0, int(float(turn.get("ts", base)) - base))
             stamp = f"{offset // 3600:02d}:{(offset % 3600) // 60:02d}:{offset % 60:02d}"
             speaker = "对方" if turn.get("speaker") == "other" else "我"
+            if turn.get("speaker") == "other" and turn.get("speaker_label"):
+                speaker = str(turn.get("speaker_label"))
             text = str(turn.get("en", "") or "").strip()
             zh = str(turn.get("zh", "") or "").strip()
             if not text:
@@ -2594,6 +2752,13 @@ $speaker.Dispose()
     def generate_meeting_notes(self) -> dict[str, Any]:
         if self.mode != "meeting":
             return {"ok": False, "error": "只有会议纪要工作区可以生成纪要。"}
+        thread = self._diarization_thread
+        if (
+            self.settings.get("diarization_enabled", False)
+            and thread is not None
+            and thread.is_alive()
+        ):
+            return {"ok": False, "error": "正在区分与会人，请稍候再生成纪要。"}
         lines = self._meeting_lines()
         if not lines:
             return {"ok": False, "error": "还没有会议转录内容，先开始记录。"}
@@ -2842,6 +3007,10 @@ $speaker.Dispose()
             "suggestion": suggestion,
             "meeting_notes": self.meeting_notes,
             "voice_input": self.voice_public_state(),
+            "diarization": diarization.public_state(
+                str(self.settings.get("diarization_model", diarization.DEFAULT_MODEL) or "")
+            ),
+            "diarization_run": dict(self.diarization_state),
             "voice_history": [dict(row) for row in self.voice_history[:20]],
             "partial": self.partial,
             "levels": self.levels,
@@ -3022,6 +3191,15 @@ class Handler(BaseHTTPRequestHandler):
             query = urllib.parse.parse_qs(parsed.query)
             refresh = query.get("refresh", ["0"])[0] in ("1", "true", "yes")
             self._json(models.catalog(refresh=refresh))
+            return
+        if path == "/api/diarization":
+            query = urllib.parse.parse_qs(parsed.query)
+            model_id = str(
+                (query.get("model", [""])[0] or "")
+                or self.app.settings.get("diarization_model", diarization.DEFAULT_MODEL)
+                or diarization.DEFAULT_MODEL
+            )
+            self._json(diarization.public_state(model_id))
             return
         if path == "/api/model-management":
             self._json(models.management(refresh=True))
@@ -3231,12 +3409,23 @@ class Handler(BaseHTTPRequestHandler):
             result = self.app.stop_capture()
             if (
                 self.app.mode == "meeting"
+                and self.app.settings.get("diarization_enabled", False)
+            ):
+                # Diarization is independent from auto-notes: it still runs if
+                # the user prefers to generate notes manually later.
+                self.app.start_meeting_diarization_async()
+            if (
+                self.app.mode == "meeting"
                 and self.app.settings.get("meeting_auto_notes", True)
             ):
                 def auto_notes() -> None:
                     # The last VAD segment can arrive just after stop; give it
                     # a moment so the final sentence is included in the notes.
                     time.sleep(2.0)
+                    if self.app.settings.get("diarization_enabled", False):
+                        thread = self.app._diarization_thread
+                        if thread is not None:
+                            thread.join(timeout=900)
                     if self.app.turns:
                         self.app.generate_meeting_notes()
                 threading.Thread(
@@ -3365,6 +3554,15 @@ class Handler(BaseHTTPRequestHandler):
                     # Interface language drives the per-feature defaults.
                     merged.update(language.defaults_for_ui(requested_ui_language))
                 merged["ui_language"] = requested_ui_language
+                requested_diarization_model = str(
+                    merged.get("diarization_model", diarization.DEFAULT_MODEL)
+                    or diarization.DEFAULT_MODEL
+                )
+                if bool(merged.get("diarization_enabled", False)) and not diarization.is_ready(
+                    requested_diarization_model
+                ):
+                    self._error("需要先下载说话人区分模型，才能开启与会人区分。", 409)
+                    return
                 self.app.settings = config.save_settings(merged)
                 self.app.brain.set_settings(self.app.settings)
                 if self.app.mode == "translate":
@@ -3466,6 +3664,21 @@ class Handler(BaseHTTPRequestHandler):
             self.app._publish_status()
             self.app.bus.publish({"type": "mode", "data": {"mode": mode}})
             self._json({"ok": True, "mode": mode})
+            return
+        if path == "/api/diarization/download":
+            model_id = str(
+                body.get("model")
+                or self.app.settings.get("diarization_model", diarization.DEFAULT_MODEL)
+                or diarization.DEFAULT_MODEL
+            )
+            result = diarization.start_download(model_id)
+            self._json(
+                {
+                    "ok": bool(result.get("ok")),
+                    "state": result.get("state") or diarization.public_state(model_id),
+                    "diarization": diarization.public_state(model_id),
+                }
+            )
             return
         if path == "/api/overlay":
             action = str(body.get("action", "toggle") or "toggle")

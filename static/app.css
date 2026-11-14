@@ -1070,6 +1070,7 @@ body.mode-translate .subtitle-tools-panel { display: flex; }
 .subtitle-tool-card h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
 .subtitle-tool-card p { margin: 0; color: var(--faint); font-size: 10.5px; line-height: 1.65; }
 .subtitle-tool-card .btn { width: 100%; margin-top: 11px; }
+.diarization-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
 body.mode-translate .transcript-panel { min-height: 0; }
 body.mode-translate .audio-strip { grid-template-columns: 1fr; max-width: 520px; }
 body.mode-translate #channelMe { display: none; }

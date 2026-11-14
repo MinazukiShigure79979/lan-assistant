@@ -9,6 +9,15 @@
   "use strict";
 
   const EN = {
+    "说话人区分模型": "Speaker diarization model",
+    "会后离线区分会议里的不同说话人。默认 WeSpeaker ResNet34；中文会议可换 3D-Speaker。模型不随程序打包，首次使用需要下载。": "Separate speakers after the meeting, offline. WeSpeaker ResNet34 is the default; 3D-Speaker is available for Chinese-heavy meetings. Models are downloaded on first use.",
+    "与会人声纹模型": "Speaker embedding model",
+    "下载说话人区分模型": "Download diarization models",
+    "需要两个文件：pyannote 分割模型 + 所选声纹模型。下载后无需重启服务；首次区分时会加载模型。": "Two files are required: pyannote segmentation and the selected speaker embedding. No service restart is needed; models load on first use.",
+    "与会人区分": "Speaker diarization",
+    "会后把会议里的不同说话人分成 Speaker 1、Speaker 2…，不会在会议进行中实时猜人。需要先在「模型（全局）」下载声纹模型。": "After the meeting, label speakers as Speaker 1, Speaker 2, and so on. This is offline and requires downloading a model under Models.",
+    "区分与会人": "Separate meeting participants",
+    "停止记录后离线分析，再生成带说话人标签的纪要；首次使用需要下载模型": "Analyze offline after stopping, then generate notes with speaker labels. A model download is required on first use.",
     "字幕工具": "Subtitle tools",
     "校对字幕": "Proofread subtitles",
     "逐条修改本次听读的原文和译文；保存后页面、悬浮字幕和导出文件都会使用修改后的版本。": "Edit each source line and translation; saved changes update the page, floating subtitles, and exported files.",

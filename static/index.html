@@ -7,7 +7,7 @@
   <title>Lan.Assistant</title>
   <link rel="icon" type="image/png" sizes="256x256" href="/static/favicon.png?v=37">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=37">
-  <link rel="stylesheet" href="/static/app.css?v=67">
+  <link rel="stylesheet" href="/static/app.css?v=70">
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -778,6 +778,32 @@
 
         <div class="settings-section" data-settings-tab="model">
           <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>说话人区分模型</h3>
+                <p class="settings-block-desc">会后离线区分会议里的不同说话人。默认 WeSpeaker ResNet34；中文会议可换 3D-Speaker。模型不随程序打包，首次使用需要下载。</p>
+              </div>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>与会人声纹模型</span>
+                <select id="setDiarizationModel">
+                  <option value="wespeaker_en_voxceleb_resnet34">WeSpeaker ResNet34（推荐，多语种）</option>
+                  <option value="3dspeaker_eres2net_zh">3D-Speaker ERes2Net（中文优先）</option>
+                </select>
+              </label>
+              <div class="device-hint" id="diarizationStatus">正在检查模型状态…</div>
+              <div class="diarization-actions">
+                <button type="button" class="btn btn-tiny" id="btnDownloadDiarization">下载说话人区分模型</button>
+                <button type="button" class="btn btn-tiny" id="btnRefreshDiarization">刷新状态</button>
+              </div>
+              <div class="field-note">需要两个文件：pyannote 分割模型 + 所选声纹模型。下载后无需重启服务；首次区分时会加载模型。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section" data-settings-tab="model">
+          <div class="settings-block">
           <div class="settings-title">
             <div>
               <h3>本地模型</h3>
@@ -1018,6 +1044,19 @@
               </label>
             </div>
           </div>
+
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>与会人区分</h3>
+                <p class="settings-block-desc">会后把会议里的不同说话人分成 Speaker 1、Speaker 2…，不会在会议进行中实时猜人。需要先在「模型（全局）」下载声纹模型。</p>
+              </div>
+            </div>
+            <div class="check-grid">
+              <label class="check"><input type="checkbox" id="setMeetingDiarization"><span><b>区分与会人</b><small>停止记录后离线分析，再生成带说话人标签的纪要；首次使用需要下载模型</small></span></label>
+            </div>
+            <div class="device-hint" id="meetingDiarizationHint">正在检查说话人区分模型…</div>
+          </div>
         </div>
       </div>
       <footer class="modal-foot">
@@ -1070,7 +1109,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
-  <script src="/static/i18n.js?v=9"></script>
-  <script src="/static/app.js?v=68"></script>
+  <script src="/static/i18n.js?v=12"></script>
+  <script src="/static/app.js?v=71"></script>
 </body>
 </html>

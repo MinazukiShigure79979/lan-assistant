@@ -1,2 +1,4 @@
 # Build-only dependencies. Runtime dependencies are the existing .venv.
 pyinstaller>=6.10,<7
+sherpa-onnx>=1.12,<2
+onnx>=1.16,<2

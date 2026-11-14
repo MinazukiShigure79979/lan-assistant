@@ -21,6 +21,7 @@ hiddenimports = [
     "language",
     "setup_manager",
     "server",
+    "diarization",
     "tts_server",
     "subtitle_overlay",
     "voice_overlay",
@@ -35,7 +36,7 @@ hiddenimports = [
     "huggingface_hub.snapshot_download",
 ]
 
-for package in ("faster_whisper", "ctranslate2", "pyaudiowpatch", "webrtcvad", "onnxruntime"):
+for package in ("faster_whisper", "ctranslate2", "pyaudiowpatch", "webrtcvad", "onnxruntime", "sherpa_onnx", "onnx"):
     try:
         package_datas, package_binaries, package_hidden = collect_all(package)
         datas += package_datas

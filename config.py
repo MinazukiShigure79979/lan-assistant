@@ -220,6 +220,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "meeting_auto_notes": True,
     "meeting_notes_language": "zh",
     "meeting_context": "",
+    "diarization_enabled": False,
+    "diarization_model": "wespeaker_en_voxceleb_resnet34",
     "voice_hotkey": "ctrl+alt+space",
     "voice_hotkey_hold": False,
     "voice_target_language": "zh",
@@ -444,6 +446,16 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
         if clean["meeting_notes_language"] not in ("zh", "en", "ja", "ko"):
             clean["meeting_notes_language"] = "zh"
         clean["meeting_context"] = str(clean.get("meeting_context", "") or "")[:4000]
+        clean["diarization_enabled"] = bool(clean.get("diarization_enabled", False))
+        clean["diarization_model"] = str(
+            clean.get("diarization_model", "wespeaker_en_voxceleb_resnet34")
+            or "wespeaker_en_voxceleb_resnet34"
+        )
+        if clean["diarization_model"] not in (
+            "wespeaker_en_voxceleb_resnet34",
+            "3dspeaker_eres2net_zh",
+        ):
+            clean["diarization_model"] = "wespeaker_en_voxceleb_resnet34"
         hotkey = str(clean.get("voice_hotkey", "ctrl+alt+space") or "ctrl+alt+space")
         if hotkey not in ("ctrl+alt+space", "ctrl+shift+space", "alt+space", "f9", "f10"):
             hotkey = "ctrl+alt+space"

@@ -174,10 +174,37 @@ Lan.Assistant 是运行在 Windows 电脑上的实时语音助手：既能做通
 
 说明：
 
-- 只有双声道，不能区分会议里的多个发言人；多人会议统一标为「对方」。
+- 默认只有双声道，不能区分会议里的多个发言人；多人会议统一标为「对方」。
+- 可在 **会议纪要 → 与会人区分** 打开离线说话人区分；开启前需要先在 **模型（全局）→ 说话人区分模型** 下载模型。
 - 长会议会自动分段摘要再汇总。
 - 不会编造未出现的负责人、日期或决定；未说明的字段显示「待定」。
 - 转录内容会发送给当前选择的全局模型（本地或 API）。
+
+### 与会人区分
+
+- 默认模型：**WeSpeaker ResNet34**（跨语种，适合中英日混合）
+- 中文会议可切换：**3D-Speaker ERes2Net**
+- 模型不随程序打包；第一次使用需要下载 **pyannote 分割模型 + 所选声纹模型**
+- 停止会议后在本机离线处理，只把会议期间的系统声音片段保留在内存，处理完成即释放
+- 输出匿名标签 **Speaker 1 / Speaker 2 / …**，不会自动猜真实姓名
+- 首次使用或短会议会增加一段等待；CPU 也能运行，核显不会被强制使用
+- 会议纪要和导出内容会带上说话人标签；识别错了可以在字幕/转录里人工改名或忽略
+- 多人抢话、笑声、音色相近时仍会出错，不能保证 100% 准确
+
+参考模型：
+
+- [sherpa-onnx 说话人分离模型](https://github.com/k2-fsa/sherpa/blob/master/docs/source/onnx/speaker-diarization/models.rst)
+- WeSpeaker ResNet34：CC-BY-4.0
+- 3D-Speaker ERes2Net：Apache-2.0
+
+源码运行时需要安装：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install "sherpa-onnx>=1.12,<2" "onnx>=1.16,<2"
+```
+
+模型下载到 `models/diarization/`；安装包和 Git 都不包含这些权重。
+
 
 ## 换电脑 / 硬件自动适配
 
@@ -576,6 +603,7 @@ lan-assistant/
 ├─ tray.py                    系统托盘图标与右键菜单
 ├─ hardware.py                CPU / 显卡 / 内存检测与自动配置
 ├─ models.py                  Whisper / GGUF 模型扫描与推荐
+├─ diarization.py             离线说话人分离、模型下载与转写对齐
 ├─ tts_server.py              本地 Windows 语音朗读服务
 ├─ voice_input.py             全局快捷键、麦克风短录音、Unicode 插入
 ├─ voice_overlay.py           语音输入校对浮窗

@@ -35,6 +35,8 @@
     voiceInput: { status: "idle", id: 0 },
     voiceHistory: [],
     hardware: {},
+    diarization: {},
+    diarizationRun: {},
     hardwareRecommendation: null,
     models: { whisper: [], llm: [] },
     modelManagement: null,
@@ -146,6 +148,12 @@
     setMeetingAutoNotes: $("#setMeetingAutoNotes"),
     setMeetingNotesLanguage: $("#setMeetingNotesLanguage"),
     setMeetingContext: $("#setMeetingContext"),
+    setMeetingDiarization: $("#setMeetingDiarization"),
+    setDiarizationModel: $("#setDiarizationModel"),
+    diarizationStatus: $("#diarizationStatus"),
+    meetingDiarizationHint: $("#meetingDiarizationHint"),
+    btnDownloadDiarization: $("#btnDownloadDiarization"),
+    btnRefreshDiarization: $("#btnRefreshDiarization"),
     hardwareSummary: $("#hardwareSummary"),
     hardwareHint: $("#hardwareHint"),
     btnApplyHardware: $("#btnApplyHardware"),
@@ -363,6 +371,9 @@
     state.profile = data.profile || {};
     state.settings = data.settings || {};
     state.hardware = data.hardware || {};
+    state.diarization = data.diarization || state.diarization || {};
+    state.diarizationRun = data.diarization_run || state.diarizationRun || {};
+    if (els.diarizationStatus) renderDiarization();
     state.hardwareRecommendation = data.hardware_recommendation || null;
     state.models = data.models || state.models || { whisper: [], llm: [] };
     state.mode = data.mode || state.settings.app_mode || "call";
@@ -453,8 +464,9 @@
       case "turn_update": {
         const turn = state.turns.find((t) => t.id === d.id);
         if (turn) {
-          turn.zh = d.zh || "";
+          turn.zh = d.zh || turn.zh || "";
           if (d.en !== undefined) turn.en = d.en;
+          if (d.speaker_label !== undefined) turn.speaker_label = d.speaker_label;
         }
         if (state.suggestion && state.suggestion.for_turn === d.id && !state.suggestion.translation) {
           state.suggestion.translation = d.zh || "";
@@ -519,6 +531,14 @@
       case "overlay":
         state.overlayRunning = !!(d && d.running);
         renderMode();
+        break;
+      case "diarization":
+        state.diarizationRun = d || {};
+        if (d && d.status === "ready") refreshDiarization(
+          (els.setDiarizationModel && els.setDiarizationModel.value) || "",
+          false
+        );
+        if (state.mode === "meeting") renderMeetingNotes();
         break;
       case "levels":
         state.levels = d;
@@ -806,7 +826,9 @@
       const avatar = make("div", "turn-avatar", isOther ? "O" : "ME");
       const body = make("div", "turn-body");
       const meta = make("div", "turn-meta");
-      meta.appendChild(make("span", "turn-speaker", isOther ? (state.mode === "meeting" ? "会议" : "对方") : "我"));
+      meta.appendChild(make("span", "turn-speaker", isOther
+        ? (turn.speaker_label || (state.mode === "meeting" ? "会议" : "对方"))
+        : "我"));
       meta.appendChild(make("span", "turn-time", fmtClock(turn.ts)));
       body.appendChild(meta);
       body.appendChild(make("p", "turn-en", turn.en || ""));
@@ -1313,13 +1335,22 @@
     const data = state.meetingNotes;
     const notes = data && data.notes;
     const status = data && data.status;
+    const diarRunning = (state.diarizationRun || {}).status === "running";
     els.meetingNotesBody.replaceChildren();
     els.meetingNotesEmpty.classList.toggle("hidden", !!data);
-    els.btnGenerateNotes.disabled = status === "thinking";
-    els.btnGenerateNotes.textContent = status === "thinking" ? "整理中…" : "生成纪要";
+    els.btnGenerateNotes.disabled = status === "thinking" || diarRunning;
+    els.btnGenerateNotes.textContent = diarRunning
+      ? "区分与会人中…"
+      : status === "thinking" ? "整理中…" : "生成纪要";
     els.btnExportNotes.disabled = !(status === "ready" && notes);
     if (!data) {
-      els.meetingNotesMeta.textContent = "等待会议内容…";
+      const diag = state.diarizationRun || {};
+      if (["running", "downloading", "extracting"].includes(diag.status)) {
+        els.meetingNotesMeta.textContent =
+          `${diag.message || "正在区分与会人…"} ${diag.progress || 0}%`;
+      } else {
+        els.meetingNotesMeta.textContent = "等待会议内容…";
+      }
       return;
     }
     if (status === "thinking") {
@@ -2248,6 +2279,10 @@
     els.setMeetingAutoNotes.checked = s.meeting_auto_notes !== false;
     els.setMeetingNotesLanguage.value = s.meeting_notes_language || "zh";
     els.setMeetingContext.value = s.meeting_context || "";
+    els.setMeetingDiarization.checked = s.diarization_enabled === true;
+    if (els.setDiarizationModel) {
+      els.setDiarizationModel.value = s.diarization_model || "wespeaker_en_voxceleb_resnet34";
+    }
     els.setVoiceHotkey.value = s.voice_hotkey || "ctrl+alt+space";
     els.setVoiceHotkeyHold.value = s.voice_hotkey_hold ? "true" : "false";
     els.setHardwareAuto.checked = s.hardware_auto_configure !== false;
@@ -2265,9 +2300,95 @@
     els.setVoiceFocusTitles.value = s.voice_focus_titles || "DeepSeek Harness";
     setMediaPresetState("已从本机载入 · 修改会自动保存");
     syncApiFields(false);
+    renderDiarization();
     els.llmTestResult.classList.add("hidden");
     els.llmTestResult.textContent = "";
   }
+
+  function diarizationModelInfo(modelId) {
+    const models = (state.diarization && state.diarization.models) || [];
+    return models.find((row) => row.id === modelId) || null;
+  }
+
+  function renderDiarization() {
+    if (!els.diarizationStatus || !els.setMeetingDiarization) return;
+    const data = state.diarization || {};
+    const modelId = (els.setDiarizationModel && els.setDiarizationModel.value)
+      || (state.settings && state.settings.diarization_model)
+      || "wespeaker_en_voxceleb_resnet34";
+    const info = diarizationModelInfo(modelId);
+    const status = data.status || {};
+    const running = ["downloading", "extracting"].includes(status.status);
+    const ready = !!(info && info.downloaded && data.segmentation_downloaded) && !running;
+    const library = data.library !== false;
+    let text;
+    if (!library) {
+      text = "缺少 sherpa-onnx 运行库，无法使用说话人区分。";
+    } else if (running) {
+      text = `${status.message || "正在下载模型…"} ${status.progress || 0}%`;
+    } else if (status.status === "error" && status.error) {
+      text = `模型准备失败：${status.error}`;
+    } else if (ready) {
+      text = `已就绪：${info ? info.short : "声纹模型"} + pyannote 分割模型。停止记录后会自动区分与会人。`;
+    } else {
+      text = `尚未下载${info ? ` ${info.label}` : ""}，需要先下载约 ${info ? info.size : "几十 MB"} 的模型。`;
+    }
+    els.diarizationStatus.textContent = text;
+    if (els.btnDownloadDiarization) {
+      els.btnDownloadDiarization.disabled = running;
+      els.btnDownloadDiarization.textContent = running
+        ? `下载中 ${status.progress || 0}%`
+        : ready ? "重新下载模型" : "下载说话人区分模型";
+    }
+    const enabled = ready && library;
+    els.setMeetingDiarization.disabled = !enabled;
+    if (!enabled && els.setMeetingDiarization.checked) {
+      els.setMeetingDiarization.checked = false;
+    }
+    if (els.meetingDiarizationHint) {
+      els.meetingDiarizationHint.textContent = enabled
+        ? "停止记录后会在本机离线区分不同与会人，再生成带 Speaker 标签的纪要。"
+        : "还没有可用的声纹模型；请先到「模型（全局）→ 说话人区分模型」下载。";
+    }
+  }
+
+  async function refreshDiarization(modelId = "", showToast = false) {
+    try {
+      const query = modelId ? `?model=${encodeURIComponent(modelId)}` : "";
+      const data = await api(`/api/diarization${query}`);
+      state.diarization = data || {};
+      renderDiarization();
+      if (showToast) toast("说话人区分模型状态已刷新", "good");
+      return state.diarization;
+    } catch (err) {
+      if (showToast) showAlert(err.message, "bad", "diarization");
+      return state.diarization;
+    }
+  }
+
+  async function downloadDiarization() {
+    const model = (els.setDiarizationModel && els.setDiarizationModel.value)
+      || "wespeaker_en_voxceleb_resnet34";
+    try {
+      await api("/api/diarization/download", { method: "POST", body: { model } });
+      await refreshDiarization(model, false);
+      const poll = async () => {
+        const data = await refreshDiarization(model, false);
+        const status = (data && data.status) || {};
+        if (["downloading", "extracting"].includes(status.status)) {
+          setTimeout(poll, 1200);
+        } else if (status.status === "ready") {
+          toast("说话人区分模型已下载完成", "good");
+        } else if (status.status === "error") {
+          showAlert(`模型下载失败：${status.error || "未知错误"}`, "bad", "diarization");
+        }
+      };
+      setTimeout(poll, 1200);
+    } catch (err) {
+      showAlert(`开始下载失败：${err.message}`, "bad", "diarization");
+    }
+  }
+
 
   function syncApiFields(autofill) {
     const provider = els.setLlmProvider.value;
@@ -2484,6 +2605,8 @@
     payload.meeting_auto_notes = els.setMeetingAutoNotes.checked;
     payload.meeting_notes_language = els.setMeetingNotesLanguage.value;
     payload.meeting_context = els.setMeetingContext.value.trim();
+    payload.diarization_enabled = els.setMeetingDiarization.checked;
+    payload.diarization_model = els.setDiarizationModel.value;
     payload.hardware_auto_configure = els.setHardwareAuto.checked;
     payload.voice_hotkey = els.setVoiceHotkey.value;
     payload.voice_hotkey_hold = els.setVoiceHotkeyHold.value === "true";
@@ -2499,6 +2622,22 @@
     payload.voice_vocabulary = els.setVoiceVocabulary.value.trim();
     payload.voice_focus_silence_ms = Number(els.setVoiceFocusSilence.value);
     payload.voice_focus_titles = els.setVoiceFocusTitles.value.trim();
+    if (payload.diarization_enabled) {
+      const info = diarizationModelInfo(payload.diarization_model);
+      const ready = !!(state.diarization && state.diarization.segmentation_downloaded && info && info.downloaded);
+      if (!ready) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "保存设置";
+        if (els.settingsSaveStatus) {
+          els.settingsSaveStatus.textContent = "需要先下载说话人区分模型";
+          els.settingsSaveStatus.classList.remove("good");
+          els.settingsSaveStatus.classList.add("bad");
+        }
+        applySettingsTab("model");
+        showAlert("开启与会人区分前，请先下载所选声纹模型和 pyannote 分割模型。", "bad", "diarization");
+        return;
+      }
+    }
     try {
       const res = await api("/api/settings", { method: "POST", body: payload });
       state.settings = res.settings || payload;
@@ -2743,6 +2882,27 @@
       if (state.mediaSaveTimer) flushMediaPreset();
     });
     els.settingsForm.addEventListener("submit", saveSettings);
+    if (els.btnDownloadDiarization) {
+      els.btnDownloadDiarization.addEventListener("click", downloadDiarization);
+    }
+    if (els.btnRefreshDiarization) {
+      els.btnRefreshDiarization.addEventListener("click", () => {
+        const model = (els.setDiarizationModel && els.setDiarizationModel.value) || "";
+        refreshDiarization(model, true);
+      });
+    }
+    if (els.setDiarizationModel) {
+      els.setDiarizationModel.addEventListener("change", () => {
+        renderDiarization();
+      });
+    }
+    if (els.setMeetingDiarization) {
+      els.setMeetingDiarization.addEventListener("change", () => {
+        if (els.setMeetingDiarization.checked && els.setMeetingDiarization.disabled) {
+          els.setMeetingDiarization.checked = false;
+        }
+      });
+    }
     $("#btnRefreshDevices").addEventListener("click", async () => {
       els.deviceHint.textContent = "正在刷新音频设备…";
       try {
