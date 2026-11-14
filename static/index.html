@@ -510,12 +510,12 @@
 
         <div class="settings-section" data-settings-tab="model">
           <div class="settings-title">
-            <h3>回答引擎（全局）</h3>
+            <h3>语言模型（全局）</h3>
             <span class="engine-note">对所有工作区生效</span>
           </div>
           <div class="form-grid compact">
             <label class="field span-2">
-              <span>使用哪个模型回答</span>
+              <span>回答与翻译使用的模型</span>
               <select id="setLlmProvider">
                 <option value="local">本地模型（离线）</option>
                 <option value="deepseek">DeepSeek 官方 API（专用，deepseek-flash）</option>
@@ -523,7 +523,7 @@
               </select>
             </label>
           </div>
-          <div class="device-hint" id="providerHint">本地模型：音频和文字都不上传，离线可用。</div>
+          <div class="device-hint" id="providerHint">本地模型：回答和字幕翻译都在本机完成，音频和文字都不上传，离线可用。</div>
           <div id="apiFields" class="hidden">
             <div id="deepseekCard" class="provider-card hidden">
               <div class="provider-card-copy">
@@ -554,9 +554,9 @@
             </div>
             <label class="check api-thinking" id="apiThinkingLabel">
               <input type="checkbox" id="setApiDisableThinking" checked>
-              <span><b>关闭深度思考</b><small>DeepSeek 默认开启思考；勾选后发送 thinking=disabled，直接回答</small></span>
+              <span><b>关闭深度思考</b><small>DeepSeek 默认开启思考；勾选后发送 thinking=disabled，直接生成</small></span>
             </label>
-            <div class="device-hint" id="apiHint">使用 API 时，对话文本会发送给该服务商。DeepSeek 默认会用 deepseek-flash，并关闭思考模式。</div>
+            <div class="device-hint" id="apiHint">使用 API 时，回答和字幕文本会发送给该服务商。DeepSeek 默认会用 deepseek-flash，并关闭思考模式。</div>
           </div>
         </div>
 
@@ -925,7 +925,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
-  <script src="/static/i18n.js?v=2"></script>
-  <script src="/static/app.js?v=64"></script>
+  <script src="/static/i18n.js?v=3"></script>
+  <script src="/static/app.js?v=65"></script>
 </body>
 </html>

@@ -2270,13 +2270,13 @@
     }
     if (isDeepSeek) {
       els.providerHint.textContent = "已选 DeepSeek 官方专用接口：地址、模型、关闭思考已预填，通常只需要填 API Key。";
-      els.apiHint.textContent = "DeepSeek 官方 API：默认 deepseek-flash（也可填 deepseek-v4-pro），使用 API 时对话文本会发送给 DeepSeek，音频仍不上传。";
+      els.apiHint.textContent = "DeepSeek 官方 API：默认 deepseek-flash（也可填 deepseek-v4-pro），使用 API 时回答和字幕文本会发送给 DeepSeek，音频仍不上传。";
     } else if (isCustom) {
       els.providerHint.textContent = "这里用于 OpenAI、OpenRouter、硅基流动、本地 vLLM 等其他兼容服务；如果使用 DeepSeek，请选上面的官方专用项。";
-      els.apiHint.textContent = "任何 OpenAI 兼容接口。使用 API 时，对话文本会发送给你填写的服务商。";
+      els.apiHint.textContent = "任何 OpenAI 兼容接口。使用 API 时，回答和字幕文本会发送给你填写的服务商。";
     } else {
-      els.providerHint.textContent = "本地模型：音频和文字都不上传，离线可用。可在下方「本地模型版本」切换。";
-      els.apiHint.textContent = "本地模型：音频和文字都不上传，离线可用。";
+      els.providerHint.textContent = "本地模型：回答和字幕翻译都在本机完成，音频和文字都不上传，离线可用。可在下方「本地模型版本」切换。";
+      els.apiHint.textContent = "本地模型：回答和字幕翻译都在本机完成，音频和文字都不上传，离线可用。";
     }
   }
 
