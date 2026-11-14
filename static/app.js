@@ -749,9 +749,14 @@
     }
     // Invisible marker lets the tray distinguish this app window from another
     // browser tab whose title also happens to contain "Lan.Assistant".  The
-    // port is included so a window connected to an old port is not reused.
+    // port is encoded as zero-width characters, so it is not visible in the
+    // title bar but can still prevent reusing a window on an old port.
+    const encodePort = (value) => {
+      const bits = Math.max(0, Number(value) || 0).toString(2).padStart(16, "0");
+      return [...bits].map((bit) => (bit === "1" ? "\u200b" : "\u2060")).join("");
+    };
     const baseTitle = document.title.replace(/\u2063/g, "");
-    document.title = `${baseTitle}${APP_WINDOW_TITLE_MARKER}${location.port || ""}${APP_WINDOW_TITLE_MARKER}`;
+    document.title = `${baseTitle}${APP_WINDOW_TITLE_MARKER}${encodePort(location.port)}${APP_WINDOW_TITLE_MARKER}`;
   }
 
   function updateGlobalModelLabel() {

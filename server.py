@@ -4023,6 +4023,16 @@ def _find_edge() -> Optional[Path]:
     return None
 
 
+def _decode_ui_port(token: str) -> int:
+    """Decode the zero-width port token used in the browser window title."""
+    if not token or any(char not in ("\u200b", "\u2060") for char in token):
+        return 0
+    try:
+        return int("".join("1" if char == "\u200b" else "0" for char in token), 2)
+    except ValueError:
+        return 0
+
+
 def _close_stale_ui(port: int) -> None:
     """Close Lan.Assistant windows left on an older port after a port change."""
     if sys.platform != "win32":
@@ -4049,7 +4059,8 @@ def _close_stale_ui(port: int) -> None:
             if len(parts) < 3:
                 stale = len(parts) == 2
             else:
-                stale = bool(parts[1]) and parts[1] != str(port)
+                actual_port = _decode_ui_port(parts[1])
+                stale = actual_port != int(port) if actual_port else bool(parts[1])
             if not stale:
                 return True
             klass = ctypes.create_unicode_buffer(128)
@@ -4094,7 +4105,10 @@ def _focus_existing_ui(port: int = 0) -> bool:
             if "lan.assistant" not in title.lower():
                 return True
             parts = title.split(APP_WINDOW_TITLE_MARKER)
-            if len(parts) < 3 or (port and parts[1] != str(port)):
+            if len(parts) < 3:
+                return True
+            actual_port = _decode_ui_port(parts[1])
+            if not actual_port or (port and actual_port != int(port)):
                 return True
             klass = ctypes.create_unicode_buffer(128)
             user32.GetClassNameW(hwnd, klass, 128)
