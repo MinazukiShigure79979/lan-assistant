@@ -113,6 +113,18 @@ def fallback_suggestions(latest: str, count: int = 3) -> dict[str, Any]:
     }
 
 
+_MEETING_LANGUAGE_LABELS = {
+    "zh": "Simplified Chinese",
+    "en": "English",
+    "ja": "Japanese",
+    "ko": "Korean",
+}
+
+
+def _meeting_language_label(language: str) -> str:
+    return _MEETING_LANGUAGE_LABELS.get(str(language or "zh"), "Simplified Chinese")
+
+
 class Brain:
     def __init__(
         self,
@@ -851,7 +863,7 @@ class Brain:
         return obj
 
     def meeting_chunk_summary(self, text: str, language: str = "zh") -> str:
-        label = "Simplified Chinese" if language != "en" else "English"
+        label = _meeting_language_label(language)
         content = self.chat(
             [
                 {
@@ -877,7 +889,7 @@ class Brain:
         context: str = "",
         language: str = "zh",
     ) -> dict[str, Any]:
-        label = "Simplified Chinese" if language != "en" else "English"
+        label = _meeting_language_label(language)
         schema = {
             "type": "object",
             "properties": {

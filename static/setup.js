@@ -190,6 +190,7 @@
 
   function sync(state) {
     current = state;
+    if (window.I18N) window.I18N.apply(state.ui_language || "zh");
     const versionLabel = document.getElementById("setupVersion");
     if (versionLabel && state.display_version) versionLabel.textContent = state.display_version;
     if (!state.required) {

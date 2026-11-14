@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import api_secrets
+import local_profile
 
 FROZEN = bool(getattr(sys, "frozen", False))
 _SCRIPT_ROOT = Path(__file__).resolve().parent
@@ -26,7 +27,8 @@ _PROJECT_HAS_MODELS = bool(
     or list(_PROJECT_MODELS_DIR.glob("llm/*.gguf"))
 )
 MODELS_DIR = (LOCAL_APP_DIR / "models") if FROZEN or not _PROJECT_HAS_MODELS else _PROJECT_MODELS_DIR
-PROFILE_PATH = DATA_DIR / "profile.json"
+PROFILE_PATH = local_profile.profile_path()
+LEGACY_PROFILE_PATH = DATA_DIR / "profile.json"
 SETTINGS_PATH = DATA_DIR / "settings.json"
 ASR_MODEL_DIR = MODELS_DIR / "faster-whisper-large-v3-turbo"
 LLM_MODEL_PATH_35 = MODELS_DIR / "llm" / "Qwen3.5-9B-Q4_K_M.gguf"
@@ -229,6 +231,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "api_model": "deepseek-flash",
     "api_key": "",
     "api_disable_thinking": True,
+    "ui_language": "",
     "echo_guard": True,
     "save_transcript": True,
     "session_note": "",
@@ -270,14 +273,18 @@ def save_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def load_profile() -> dict[str, Any]:
-    return load_json(PROFILE_PATH, DEFAULT_PROFILE)
+    raw = local_profile.load_profile()
+    clean = {key: str(raw.get(key, "") or "")[:4000] for key in DEFAULT_PROFILE}
+    clean["english_level"] = str(raw.get("english_level", "intermediate") or "intermediate")[:40]
+    clean["tone"] = str(raw.get("tone", "friendly") or "friendly")[:40]
+    return clean
 
 
 def save_profile(profile: dict[str, Any]) -> dict[str, Any]:
     clean = {key: str(profile.get(key, "") or "")[:4000] for key in DEFAULT_PROFILE}
     clean["english_level"] = str(profile.get("english_level", "intermediate") or "intermediate")[:40]
     clean["tone"] = str(profile.get("tone", "friendly") or "friendly")[:40]
-    save_json(PROFILE_PATH, clean)
+    local_profile.save_profile(clean)
     return clean
 
 
@@ -364,6 +371,9 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
         clean["api_base_url"] = str(clean.get("api_base_url", "") or "")[:500]
         clean["api_model"] = str(clean.get("api_model", "") or "")[:200]
         clean["api_key"] = str(clean.get("api_key", "") or "")[:500]
+        clean["ui_language"] = str(clean.get("ui_language", "") or "").lower()
+        if clean["ui_language"] not in ("zh", "en", "ja", "ko"):
+            clean["ui_language"] = ""
         clean["llm_provider"] = str(clean.get("llm_provider", "local") or "local")
         clean["app_mode"] = str(clean.get("app_mode", "call") or "call")
         if clean["app_mode"] not in ("call", "translate", "voice", "meeting"):
@@ -403,7 +413,7 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
         clean["overlay_enabled"] = bool(clean.get("overlay_enabled", True))
         clean["meeting_auto_notes"] = bool(clean.get("meeting_auto_notes", True))
         clean["meeting_notes_language"] = str(clean.get("meeting_notes_language", "zh") or "zh")
-        if clean["meeting_notes_language"] not in ("zh", "en"):
+        if clean["meeting_notes_language"] not in ("zh", "en", "ja", "ko"):
             clean["meeting_notes_language"] = "zh"
         clean["meeting_context"] = str(clean.get("meeting_context", "") or "")[:4000]
         hotkey = str(clean.get("voice_hotkey", "ctrl+alt+space") or "ctrl+alt+space")

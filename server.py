@@ -32,6 +32,7 @@ except Exception:
 
 import config
 import hardware
+import language
 import models
 import setup_manager
 import startup
@@ -398,7 +399,14 @@ class App:
     def __init__(self) -> None:
         config.ensure_dirs()
         self.profile = config.load_profile()
+        fresh_settings = not config.SETTINGS_PATH.exists()
         self.settings = config.load_settings()
+        if not self.settings.get("ui_language"):
+            detected_language = language.detect_system_language()
+            self.settings["ui_language"] = detected_language
+            if fresh_settings:
+                self.settings.update(language.defaults_for_ui(detected_language))
+            self.settings = config.save_settings(self.settings)
         self.hardware = hardware.detect()
         if self.settings.get("hardware_auto_configure", True):
             updated, detected, changed = hardware.apply_to_settings(self.settings)
@@ -3104,7 +3112,15 @@ class Handler(BaseHTTPRequestHandler):
                 old_voice_hold = bool(self.app.settings.get("voice_hotkey_hold", False))
                 old_voice_overlay = bool(self.app.settings.get("voice_overlay_enabled", True))
                 old_auto_hardware = bool(self.app.settings.get("hardware_auto_configure", True))
+                old_ui_language = language.normalize(self.app.settings.get("ui_language", "zh"))
+                requested_ui_language = language.normalize(
+                    body.get("ui_language", old_ui_language) or old_ui_language
+                )
                 merged = {**self.app.settings, **body}
+                if requested_ui_language != old_ui_language:
+                    # Interface language drives the per-feature defaults.
+                    merged.update(language.defaults_for_ui(requested_ui_language))
+                merged["ui_language"] = requested_ui_language
                 self.app.settings = config.save_settings(merged)
                 self.app.brain.set_settings(self.app.settings)
                 if not old_auto_hardware and self.app.settings.get("hardware_auto_configure", True):

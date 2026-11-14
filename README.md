@@ -2,6 +2,8 @@
 
 当前版本：**v1.0**（版本号统一维护在 `version.py`）
 
+界面支持 **中文 / English / 日本語 / 한국어**。首次启动按 Windows 系统界面语言选择，不支持的语言默认英文；切换界面语言时会同步各功能的默认识别/翻译语言。
+
 Lan.Assistant 是运行在 Windows 电脑上的实时语音助手：既能做通话副驾，也能做看剧/看视频时的双语字幕。它从「系统声音」里听对方或视频的声音，从麦克风听你说话，实时转写并用本地或 API 大模型生成回答或中文字幕。
 
 **音频只在本机处理，不上传、不保存录音。** 默认的本地模式连文字也不上传；如果主动切换到 DeepSeek 等 API，只有对话文字会发给你选择的服务商。
@@ -536,7 +538,7 @@ Nen -> 念
 - 默认本地模式：转写和回答由本机的 Whisper + Qwen 生成，不调用云端 API。
 - 如果切换到 DeepSeek / 自定义 API：**只有对话文字**会发送给对应服务商，音频仍然不上传。
 - 只有文字会保存在 `data/sessions/*.jsonl`（可在设置里关闭「保存文字记录」）。
-- 预设保存在 `data/profile.json`，普通设置保存在 `data/settings.json`；API 提供商、地址和 Key 属于当前电脑的本机配置，单独用 Windows DPAPI 加密保存在 `%LOCALAPPDATA%\Lan.Assistant\api_profile.dat`，不会随项目迁移。
+- 预设保存在本机加密文件 `%LOCALAPPDATA%\Lan.Assistant\profile.dat`；API 提供商、地址和 Key 属于当前电脑的本机配置，单独用 Windows DPAPI 加密保存在 `%LOCALAPPDATA%\Lan.Assistant\api_profile.dat`，不会随项目迁移。
 - 对通话进行录音 / 转写可能受当地法律和公司政策约束。请确保对方知情并同意，不要用于欺骗或冒充。
 
 ---

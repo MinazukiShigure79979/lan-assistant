@@ -109,6 +109,7 @@
     apiHint: $("#apiHint"),
     setLocalModel: $("#setLocalModel"),
     setAsrModel: $("#setAsrModel"),
+    setUiLanguage: $("#setUiLanguage"),
     btnRefreshModels: $("#btnRefreshModels"),
     modelManagerSummary: $("#modelManagerSummary"),
     modelManagerList: $("#modelManagerList"),
@@ -314,6 +315,7 @@
     } catch (err) {
       showAlert(`无法连接本地服务：${err.message}。请确认启动窗口仍在运行。`, "bad", "boot");
     }
+    if (window.I18N) window.I18N.apply(state.settings.ui_language || "zh");
     renderAll();
     connectEvents();
     startClock();
@@ -357,8 +359,7 @@
     state.models = data.models || state.models || { whisper: [], llm: [] };
     state.mode = data.mode || state.settings.app_mode || "call";
     state.overlayRunning = !!data.overlay_running;
-    state.continuation = data.continuation || null;
-    state.callSummary = data.call_summary || null;
+    state.continuation = data.continuation || null;    state.callSummary = data.call_summary || null;
     state.meetingNotes = data.meeting_notes || null;
     state.voiceInput = data.voice_input || { status: "idle", id: 0 };
     state.voiceHistory = Array.isArray(data.voice_history) ? data.voice_history : [];
@@ -2167,6 +2168,7 @@
 
   function fillSettingsForm() {
     const s = state.settings || {};
+    if (els.setUiLanguage) els.setUiLanguage.value = s.ui_language || "zh";
     $("#setAutoSuggest").checked = s.auto_suggest !== false;
     $("#setTranslate").checked = s.translate !== false;
     $("#setPartial").checked = s.partial_asr !== false;
@@ -2380,6 +2382,7 @@
       state.mediaSaveTimer = null;
     }
     const payload = { ...state.settings };
+    const previousUiLanguage = state.settings.ui_language || "zh";
     const saveBtn = $("#btnSaveSettings");
     saveBtn.disabled = true;
     saveBtn.textContent = "保存中…";
@@ -2418,6 +2421,7 @@
     payload.api_disable_thinking = els.setApiDisableThinking.checked;
     payload.llm_model = els.setLocalModel.value;
     payload.asr_model = els.setAsrModel.value;
+    payload.ui_language = els.setUiLanguage.value;
     payload.call_asr_language = els.setCallAsrLanguage.value;
     payload.translate_asr_language = els.setTranslateAsrLanguage.value;
     payload.translate_target_language = els.setTranslateTargetLanguage.value;
@@ -2451,6 +2455,10 @@
       state.settings = res.settings || payload;
       els.setApiKey.value = "";
       renderApiKeyStatus(!!state.settings.api_key_saved);
+      if (previousUiLanguage !== (state.settings.ui_language || "zh")) {
+        fillSettingsForm();
+        if (window.I18N) window.I18N.apply(state.settings.ui_language || "zh");
+      }
       setMediaPresetState("已保存到本机 data/settings.json");
       updateGlobalModelLabel();
       renderTurns();

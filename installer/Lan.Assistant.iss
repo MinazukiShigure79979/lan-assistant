@@ -50,9 +50,14 @@ CloseApplications=yes
 RestartApplications=no
 ChangesAssociations=no
 MinVersion=10.0
+LanguageDetectionMethod=uilanguage
+DefaultLanguage=en
 
 [Languages]
 Name: "chs"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "ja"; MessagesFile: "compiler:Languages\Japanese.isl"
+Name: "ko"; MessagesFile: "compiler:Languages\Korean.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务"; Flags: unchecked

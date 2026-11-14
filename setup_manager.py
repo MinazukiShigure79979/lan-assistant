@@ -261,6 +261,7 @@ class SetupManager:
                 "complete": not self._required,
                 "version": version.VERSION,
                 "display_version": version.DISPLAY_VERSION,
+                "ui_language": str(getattr(self.app, "settings", {}).get("ui_language", "zh") or "zh"),
                 "stage": self._stage,
                 "progress": round(max(0.0, min(1.0, self._progress)), 4),
                 "message": self._message,

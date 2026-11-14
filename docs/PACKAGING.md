@@ -97,14 +97,15 @@ dist\installer\release.json
 
 安装包打包时不要包含 `tools/ollama/`、`models/faster-whisper-*`、`models/llm/*.gguf`、`models/ollama/`。已经带齐模型和 Ollama 的开发机第一次运行会自动写入完成标记，不会弹出首次设置。
 
-## API 凭据
+## API 凭据和预设
 
-API Key 和 API 提供商配置属于**当前电脑的本机配置**，不进入安装包、`data/settings.json` 或模型迁移包。
+API Key、API 提供商配置和个人预设都属于**当前电脑的本机配置**，不进入安装包、`data/settings.json` 或模型迁移包。
 
-- 保存位置：`%LOCALAPPDATA%\Lan.Assistant\api_profile.dat`
-- 使用 Windows DPAPI 加密，绑定当前 Windows 用户
-- 复制项目目录不会带走 API Key；复制到新电脑后必须重新填写
-- 即使复制了 `api_profile.dat`，新电脑/新用户也无法解密
+- API：`%LOCALAPPDATA%\Lan.Assistant\api_profile.dat`
+- 预设：`%LOCALAPPDATA%\Lan.Assistant\profile.dat`
+- 两者都使用 Windows DPAPI 加密，绑定当前 Windows 用户/电脑
+- 复制项目目录不会带走；复制到新电脑后必须重新填写
+- 预设与 `data/profile.json` 无关；旧文件已在本机迁移并移除
 - 设置里提供「清除本机 API 配置」
 
 ## 路径和启动项

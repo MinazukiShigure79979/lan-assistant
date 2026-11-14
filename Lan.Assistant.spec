@@ -17,6 +17,8 @@ binaries = []
 hiddenimports = [
     "version",
     "api_secrets",
+    "local_profile",
+    "language",
     "setup_manager",
     "server",
     "tts_server",
