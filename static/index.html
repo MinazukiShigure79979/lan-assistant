@@ -825,8 +825,9 @@
               </select>
             </label>
             <label class="field span-2">
-              <span>监听兼容窗口标题</span>
-              <input type="text" id="setVoiceFocusTitles" placeholder="DeepSeek Harness" autocomplete="off">
+              <span>监听兼容窗口标题（可多个）</span>
+              <textarea id="setVoiceFocusTitles" rows="2" maxlength="1000" placeholder="DeepSeek Harness&#10;ChatGPT&#10;Claude" autocomplete="off"></textarea>
+              <small class="field-note">每行一个标题关键字，也可以直接用逗号分隔；匹配时不区分大小写。</small>
             </label>
           </div>
           <div class="check-grid">
@@ -842,7 +843,7 @@
               <small class="field-note">规范词用于 Whisper 识别偏置和自动校对；别名写成「错词=正确词」。只放专名、术语和反复出错的词。</small>
             </label>
           </div>
-          <div class="device-hint">自动监听只在「语音输入」工作区生效，且只识别常见输入框（记事本、浏览器、聊天输入框等）。Electron/网页输入框不会暴露原生焦点，可在「监听兼容窗口标题」里填窗口标题关键字，例如 DeepSeek Harness；多个用逗号分隔。游戏内自绘聊天框通常不会被识别；全屏游戏默认跳过。关闭校对浮窗后，会直接把原文或译文插入刚才的输入框。</div>
+          <div class="device-hint">自动监听只在「语音输入」工作区生效，且只识别常见输入框（记事本、浏览器、聊天输入框等）。Electron/网页输入框不会暴露原生焦点，可在「监听兼容窗口标题」里填多个窗口标题关键字，每行一个或用逗号分隔；匹配不区分大小写。游戏内自绘聊天框通常不会被识别；全屏游戏默认跳过。关闭校对浮窗后，会直接把原文或译文插入刚才的输入框。</div>
         </div>
 
         <div class="settings-section" data-settings-tab="meeting">
@@ -926,7 +927,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
-  <script src="/static/i18n.js?v=4"></script>
+  <script src="/static/i18n.js?v=5"></script>
   <script src="/static/app.js?v=66"></script>
 </body>
 </html>

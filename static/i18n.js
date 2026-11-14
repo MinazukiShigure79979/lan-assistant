@@ -103,6 +103,8 @@
     "字幕识别语言": "Subtitle source language",
     "字幕翻译目标语言": "Subtitle target language",
     "字幕翻译风格": "Subtitle translation style",
+    "监听兼容窗口标题（可多个）": "Compatible window titles (multiple)",
+    "每行一个标题关键字，也可以直接用逗号分隔；匹配时不区分大小写。": "One title keyword per line, or separate them with commas; matching is case-insensitive.",
     "内容类型": "Content type",
     "自动识别（推荐）": "Auto-detect (recommended)",
     "剧名 / 节目名": "Show / title",

@@ -470,7 +470,7 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
         clean["voice_focus_skip_fullscreen"] = bool(clean.get("voice_focus_skip_fullscreen", True))
         clean["voice_focus_titles"] = str(
             clean.get("voice_focus_titles", "DeepSeek Harness") or "DeepSeek Harness"
-        )[:300]
+        )[:1000]
         clean["voice_focus_silence_ms"] = max(
             600, min(3000, int(clean.get("voice_focus_silence_ms", 1200)))
         )

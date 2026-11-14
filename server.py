@@ -744,7 +744,13 @@ class App:
 
     def _focus_allow_titles(self) -> tuple[str, ...]:
         raw = str(self.settings.get("voice_focus_titles", "DeepSeek Harness") or "")
-        return tuple(part.strip() for part in raw.split(",") if part.strip())
+        normalized = raw.replace("，", ",").replace("；", ";").replace("\r", "\n")
+        values: list[str] = []
+        for part in re.split(r"[,;\n]+", normalized):
+            token = part.strip()
+            if token and token.lower() not in {value.lower() for value in values}:
+                values.append(token[:200])
+        return tuple(values)
 
     def _focus_watch_loop(self) -> None:
         """Auto-start one dictation when focus enters an editable control.
