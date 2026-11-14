@@ -474,6 +474,7 @@
               <label class="check"><input type="checkbox" id="setSaveTranscript" checked><span><b>保存文字记录</b><small>仅保存文字到本机，不保存录音</small></span></label>
               <label class="check"><input type="checkbox" id="setRestoreLastMode" checked><span><b>启动时恢复上次工作区</b><small>例如上次停在会议纪要，下次启动直接回到会议纪要</small></span></label>
               <label class="check"><input type="checkbox" id="setStartWithWindows"><span><b>开机自动启动</b><small>登录 Windows 后自动启动托盘，不弹控制台</small></span></label>
+              <label class="check"><input type="checkbox" id="setRunAsAdmin"><span><b>使用管理员权限打开</b><small>启动时请求管理员权限；适合原神等管理员权限游戏。修改后需重启应用生效。</small></span></label>
             </div>
           </div>
         </div>
@@ -1052,6 +1053,7 @@
       </div>
       <footer class="modal-foot">
         <span class="autosave-note settings-save-status" id="settingsSaveStatus" aria-live="polite"></span>
+        <button type="button" class="btn btn-ghost" id="btnRestartApp">重启应用</button>
         <button type="button" class="btn btn-ghost" id="btnCancelSettings">取消</button>
         <button type="submit" class="btn btn-primary" id="btnSaveSettings">保存设置</button>
       </footer>
@@ -1100,7 +1102,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
-  <script src="/static/i18n.js?v=16"></script>
-  <script src="/static/app.js?v=79"></script>
+  <script src="/static/i18n.js?v=17"></script>
+  <script src="/static/app.js?v=80"></script>
 </body>
 </html>

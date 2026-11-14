@@ -3794,6 +3794,23 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._json({"ok": False, "error": str(exc)}, 500)
             return
+        if path == "/api/restart":
+            try:
+                _spawn_restart_helper()
+            except Exception as exc:
+                self._error(f"无法启动重启进程：{exc}", 500)
+                return
+            self._json({"ok": True, "admin": bool(config.load_settings().get("run_as_admin", False))})
+
+            def restart_all() -> None:
+                time.sleep(0.35)
+                try:
+                    self.server.app.shutdown()  # type: ignore[attr-defined]
+                finally:
+                    self.server.shutdown()
+
+            threading.Thread(target=restart_all, daemon=True).start()
+            return
         if path == "/api/shutdown":
             self._json({"ok": True})
 
@@ -3955,6 +3972,24 @@ def _focus_existing_ui() -> bool:
         return True
     except Exception:
         return False
+
+
+def _spawn_restart_helper() -> None:
+    """Start a detached process that relaunches the app after shutdown."""
+    if getattr(sys, "frozen", False):
+        command = [sys.executable, "--restart-helper"]
+    else:
+        command = [sys.executable, str(config.ROOT / "tray.py"), "--restart-helper"]
+    # The helper inherits our integrity; it decides whether to request UAC.
+    command.append("--admin" if config.load_settings().get("run_as_admin", False) else "--normal")
+    subprocess.Popen(
+        command,
+        cwd=str(config.ROOT),
+        close_fds=True,
+        creationflags=0x00000008 | 0x00000200,  # DETACHED_PROCESS | NEW_PROCESS_GROUP
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def _notify_existing_ui(port: int, suffix: str) -> None:

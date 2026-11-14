@@ -195,6 +195,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "app_mode": "call",
     "restore_last_mode": True,
     "start_with_windows": False,
+    "run_as_admin": False,
     "hardware_auto_configure": True,
     "hardware_signature": "",
     "hardware_profile": "auto",
@@ -390,6 +391,7 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
             clean["app_mode"] = "call"
         clean["restore_last_mode"] = bool(clean.get("restore_last_mode", True))
         clean["start_with_windows"] = bool(clean.get("start_with_windows", False))
+        clean["run_as_admin"] = bool(clean.get("run_as_admin", False))
         clean["hardware_auto_configure"] = bool(clean.get("hardware_auto_configure", True))
         clean["hardware_signature"] = str(clean.get("hardware_signature", "") or "")
         clean["hardware_profile"] = str(clean.get("hardware_profile", "auto") or "auto")

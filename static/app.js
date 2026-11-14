@@ -84,6 +84,8 @@
     settingsDialog: $("#settingsDialog"),
     settingsForm: $("#settingsForm"),
     settingsSaveStatus: $("#settingsSaveStatus"),
+    btnRestartApp: $("#btnRestartApp"),
+    setRunAsAdmin: $("#setRunAsAdmin"),
     settingsTabs: $("#settingsTabs"),
     settingsScopeHint: $("#settingsScopeHint"),
     setOtherDevice: $("#setOtherDevice"),
@@ -2369,6 +2371,7 @@
     if (els.setDiarizationModel) {
       els.setDiarizationModel.value = s.diarization_model || "wespeaker_en_voxceleb_resnet34";
     }
+    els.setRunAsAdmin.checked = s.run_as_admin === true;
     els.setVoiceHotkey.value = s.voice_hotkey || "ctrl+alt+space";
     els.setVoiceHotkeyHold.value = s.voice_hotkey_hold ? "true" : "false";
     els.setHardwareAuto.checked = s.hardware_auto_configure !== false;
@@ -2627,6 +2630,8 @@
 
   async function saveSettings(event) {
     event.preventDefault();
+    let saved = false;
+    const previousRunAsAdmin = state.settings.run_as_admin === true;
     if (state.mediaSaveTimer) {
       clearTimeout(state.mediaSaveTimer);
       state.mediaSaveTimer = null;
@@ -2657,6 +2662,7 @@
     payload.save_transcript = $("#setSaveTranscript").checked;
     payload.restore_last_mode = $("#setRestoreLastMode").checked;
     payload.start_with_windows = $("#setStartWithWindows").checked;
+    payload.run_as_admin = els.setRunAsAdmin.checked;
     payload.echo_guard = els.setEchoGuard.checked;
     payload.suggest_count = Number($("#setSuggestCount").value);
     payload.call_silence_ms = Number($("#setCallSilenceMs").value);
@@ -2723,12 +2729,13 @@
         }
         applySettingsTab("model");
         showAlert("开启与会人区分前，请先下载所选声纹模型和 pyannote 分割模型。", "bad", "diarization");
-        return;
+        return false;
       }
     }
     try {
       const res = await api("/api/settings", { method: "POST", body: payload });
       state.settings = res.settings || payload;
+      saved = true;
       els.setApiKey.value = "";
       renderApiKeyStatus(!!state.settings.api_key_saved);
       if (previousUiLanguage !== (state.settings.ui_language || "zh")) {
@@ -2756,6 +2763,13 @@
         }
         toast("设置保存成功" + extra, "good");
       }
+      if ((state.settings.run_as_admin === true) !== previousRunAsAdmin) {
+        if (els.settingsSaveStatus) {
+          els.settingsSaveStatus.textContent = "设置已保存；需要重启应用才能生效。";
+          els.settingsSaveStatus.classList.remove("good", "bad");
+        }
+        toast("需要重启应用才能生效", "good");
+      }
     } catch (err) {
       if (els.settingsSaveStatus) {
         els.settingsSaveStatus.textContent = `保存失败：${err.message}`;
@@ -2766,6 +2780,28 @@
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = "保存设置";
+    }
+    return saved;
+  }
+
+  async function restartApp() {
+    if (!window.confirm("重启应用？当前录音、字幕和回答会中断。\n如果开启了管理员权限，会出现 UAC 提示。")) return;
+    const btn = els.btnRestartApp;
+    btn.disabled = true;
+    btn.textContent = "重启中…";
+    const ok = await saveSettings({ preventDefault() {} });
+    if (!ok) {
+      btn.disabled = false;
+      btn.textContent = "重启应用";
+      return;
+    }
+    try {
+      await api("/api/restart", { method: "POST", body: {} });
+      btn.textContent = "正在重启…";
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "重启应用";
+      toast(`重启失败：${err.message}`, "bad");
     }
   }
 
@@ -2966,6 +3002,14 @@
     });
     $("#btnCloseSettings").addEventListener("click", closeSettings);
     $("#btnCancelSettings").addEventListener("click", closeSettings);
+    if (els.btnRestartApp) els.btnRestartApp.addEventListener("click", restartApp);
+    if (els.setRunAsAdmin) {
+      els.setRunAsAdmin.addEventListener("change", () => {
+        if (!els.settingsSaveStatus) return;
+        els.settingsSaveStatus.textContent = "管理员权限设置已修改；点击「重启应用」后生效。";
+        els.settingsSaveStatus.classList.remove("good", "bad");
+      });
+    }
     els.settingsDialog.addEventListener("close", () => {
       if (state.mediaSaveTimer) flushMediaPreset();
     });

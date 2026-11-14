@@ -43,6 +43,62 @@ except Exception:
     pass
 sys.path.insert(0, str(ROOT))
 
+import config  # noqa: E402
+
+_AUX_FLAGS = ("--tts-server", "--voice-overlay", "--subtitle-overlay", "--restart-helper")
+
+
+def _is_admin() -> bool:
+    try:
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def _ensure_admin_launch() -> bool:
+    """Honor the saved 'run as administrator' preference before starting."""
+    if sys.platform != "win32" or _is_admin():
+        return True
+    try:
+        if not config.load_settings().get("run_as_admin", False):
+            return True
+    except Exception:
+        return True
+    if FROZEN:
+        target = sys.executable
+        params = subprocess.list2cmdline(sys.argv[1:])
+    else:
+        target = sys.executable
+        params = subprocess.list2cmdline([str(ROOT / "tray.py"), *sys.argv[1:]])
+    try:
+        result = ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", target, params, str(ROOT), 1
+        )
+        if int(result) > 32:
+            return False
+    except Exception:
+        pass
+    try:
+        ctypes.windll.user32.MessageBoxW(
+            None,
+            "“使用管理员权限打开”已启用，但 Windows 没有授予管理员权限。\n\n请确认 UAC 后重试，或在设置中关闭这个选项。",
+            "Lan.Assistant",
+            0x10,
+        )
+    except Exception:
+        pass
+    return False
+
+
+if __name__ == "__main__" and "--restart-helper" in sys.argv:
+    from restart_app import main as restart_main
+
+    raise SystemExit(restart_main())
+
+if __name__ == "__main__" and not any(flag in sys.argv for flag in _AUX_FLAGS):
+    if not _ensure_admin_launch():
+        raise SystemExit(0)
+
 import server  # noqa: E402
 import pystray  # noqa: E402
 from PIL import Image  # noqa: E402
@@ -415,6 +471,8 @@ def main() -> int:
         # First launch: bring the setup wizard to the foreground instead of
         # leaving the user with only a tray icon and no visible main window.
         threading.Timer(1.2, lambda: _open("")).start()
+    elif "--restart-open" in sys.argv:
+        threading.Timer(1.5, lambda: _open("")).start()
     icon.run()
 
     # Cleanup after the icon loop ends (normal Quit or /api/shutdown).
