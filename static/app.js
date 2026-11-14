@@ -42,6 +42,7 @@
     modelManagement: null,
     sessions: null,
     sessionOpen: null,
+    serverPort: 0,
     version: "",
     displayVersion: "",
     profileDirty: false,
@@ -88,6 +89,10 @@
     settingsSaveStatus: $("#settingsSaveStatus"),
     btnRestartApp: $("#btnRestartApp"),
     setRunAsAdmin: $("#setRunAsAdmin"),
+    setServerPortMode: $("#setServerPortMode"),
+    setServerPortCustom: $("#setServerPortCustom"),
+    serverPortCustomField: $("#serverPortCustomField"),
+    currentServerPort: $("#currentServerPort"),
     sessionList: $("#sessionList"),
     sessionSummary: $("#sessionSummary"),
     sessionTypeFilter: $("#sessionTypeFilter"),
@@ -395,6 +400,7 @@
   function applyState(data) {
     state.version = data.version || "";
     state.displayVersion = data.display_version || "";
+    state.serverPort = Number(data.port || 0);
     if (els.appVersionLabel && state.displayVersion) {
       els.appVersionLabel.textContent = state.displayVersion;
     }
@@ -742,8 +748,10 @@
       els.btnOverlay.textContent = state.overlayRunning ? "关闭悬浮字幕" : "悬浮字幕";
     }
     // Invisible marker lets the tray distinguish this app window from another
-    // browser tab whose title also happens to contain "Lan.Assistant".
-    document.title = document.title.replace(/\u2063/g, "") + APP_WINDOW_TITLE_MARKER;
+    // browser tab whose title also happens to contain "Lan.Assistant".  The
+    // port is included so a window connected to an old port is not reused.
+    const baseTitle = document.title.replace(/\u2063/g, "");
+    document.title = `${baseTitle}${APP_WINDOW_TITLE_MARKER}${location.port || ""}${APP_WINDOW_TITLE_MARKER}`;
   }
 
   function updateGlobalModelLabel() {
@@ -2502,6 +2510,7 @@
       els.setDiarizationModel.value = s.diarization_model || "wespeaker_en_voxceleb_resnet34";
     }
     els.setRunAsAdmin.checked = s.run_as_admin === true;
+    fillServerPort(s);
     renderDownloadSources(s);
     els.setVoiceHotkey.value = s.voice_hotkey || "ctrl+alt+space";
     els.setVoiceHotkeyHold.value = s.voice_hotkey_hold ? "true" : "false";
@@ -2524,6 +2533,35 @@
     renderDiarization();
     els.llmTestResult.classList.add("hidden");
     els.llmTestResult.textContent = "";
+  }
+
+  function syncServerPortMode() {
+    if (!els.setServerPortMode) return;
+    const custom = els.setServerPortMode.value === "custom";
+    if (els.serverPortCustomField) els.serverPortCustomField.classList.toggle("hidden", !custom);
+  }
+
+  function selectedServerPort() {
+    if (!els.setServerPortMode) return 0;
+    const mode = els.setServerPortMode.value;
+    if (mode === "auto") return 0;
+    if (mode === "custom") {
+      const value = Number(els.setServerPortCustom ? els.setServerPortCustom.value : 0);
+      return Number.isInteger(value) ? value : 0;
+    }
+    return Number(mode) || 0;
+  }
+
+  function fillServerPort(s) {
+    if (!els.setServerPortMode) return;
+    const port = Number(s.server_port || 0);
+    const fixed = [8888, 9999, 6666].includes(port);
+    els.setServerPortMode.value = port === 0 ? "auto" : fixed ? String(port) : "custom";
+    if (els.setServerPortCustom) els.setServerPortCustom.value = port && !fixed ? String(port) : "";
+    if (els.currentServerPort) {
+      els.currentServerPort.textContent = state.serverPort ? String(state.serverPort) : "—";
+    }
+    syncServerPortMode();
   }
 
   function resetSubtitleAppearance() {
@@ -3004,6 +3042,7 @@
     event.preventDefault();
     let saved = false;
     const previousRunAsAdmin = state.settings.run_as_admin === true;
+    const previousServerPort = Number(state.settings.server_port || 0);
     if (state.mediaSaveTimer) {
       clearTimeout(state.mediaSaveTimer);
       state.mediaSaveTimer = null;
@@ -3035,6 +3074,17 @@
     payload.restore_last_mode = $("#setRestoreLastMode").checked;
     payload.start_with_windows = $("#setStartWithWindows").checked;
     payload.run_as_admin = els.setRunAsAdmin.checked;
+    const selectedPort = selectedServerPort();
+    if (
+      els.setServerPortMode.value === "custom" &&
+      (selectedPort < 1024 || selectedPort > 65535 || selectedPort === 8766)
+    ) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "保存设置";
+      markSettingsNotice("自定义端口必须在 1024–65535 之间，且不能使用 8766。");
+      return false;
+    }
+    payload.server_port = selectedPort;
     payload.echo_guard = els.setEchoGuard.checked;
     payload.suggest_count = Number($("#setSuggestCount").value);
     payload.call_silence_ms = Number($("#setCallSilenceMs").value);
@@ -3149,6 +3199,10 @@
           els.settingsSaveStatus.classList.remove("good", "bad");
         }
         toast("需要重启应用才能生效", "good");
+      }
+      if (Number(state.settings.server_port || 0) !== previousServerPort) {
+        markSettingsNotice("端口设置已保存；点击「重启应用」后生效。");
+        toast("端口修改需要重启应用", "good");
       }
     } catch (err) {
       if (els.settingsSaveStatus) {
@@ -3438,6 +3492,12 @@
         if (!els.settingsSaveStatus) return;
         els.settingsSaveStatus.textContent = "管理员权限设置已修改；点击「重启应用」后生效。";
         els.settingsSaveStatus.classList.remove("good", "bad");
+      });
+    }
+    if (els.setServerPortMode) {
+      els.setServerPortMode.addEventListener("change", () => {
+        syncServerPortMode();
+        markSettingsNotice("端口设置已修改；点击「重启应用」后生效。");
       });
     }
     if ($("#btnRefreshSessions")) {

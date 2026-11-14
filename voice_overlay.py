@@ -57,9 +57,11 @@ _enable_dpi_awareness()
 import tkinter as tk
 import tkinter.font as tkfont
 
-STATUS_URL = "http://127.0.0.1:8765/api/voice/status"
-INSERT_URL = "http://127.0.0.1:8765/api/voice/insert"
-CANCEL_URL = "http://127.0.0.1:8765/api/voice/cancel"
+PORT = int(os.environ.get("LAN_ASSISTANT_PORT", "8888") or "8888")
+BASE_URL = f"http://127.0.0.1:{PORT}"
+STATUS_URL = BASE_URL + "/api/voice/status"
+INSERT_URL = BASE_URL + "/api/voice/insert"
+CANCEL_URL = BASE_URL + "/api/voice/cancel"
 POLL_SECONDS = 0.3
 BG = "#0d141c"
 PANEL = "#17222d"

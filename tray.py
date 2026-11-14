@@ -106,10 +106,16 @@ import server  # noqa: E402
 import pystray  # noqa: E402
 from PIL import Image  # noqa: E402
 
-PORT = 8765
-BASE = f"http://127.0.0.1:{PORT}"
+PORT = 0
+BASE = ""
 CREATE_NO_WINDOW = 0x08000000
 TTS_URL = "http://127.0.0.1:8766"
+
+
+def _set_port(port: int) -> None:
+    global PORT, BASE
+    PORT = int(port)
+    BASE = f"http://127.0.0.1:{PORT}"
 MODE_LABELS = {
     "call": "通话副驾",
     "translate": "听读翻译",
@@ -175,7 +181,10 @@ def _stop_tts_helper(proc: subprocess.Popen | None) -> None:
 def _health(timeout: float = 1.5) -> bool:
     try:
         with urllib.request.urlopen(BASE + "/api/health", timeout=timeout) as response:
-            return response.status == 200
+            if response.status != 200:
+                return False
+            data = json.loads(response.read().decode("utf-8"))
+            return isinstance(data, dict) and "asr" in data and "llm" in data
     except Exception:
         return False
 
@@ -237,18 +246,42 @@ def _stop_model() -> None:
 
 
 def main() -> int:
-    # If the service is already running, just open it (double-click behavior).
-    if _health():
-        _open("")
-        return 0
+    # Reuse an already-running instance, including one started with an old
+    # auto-selected port whose runtime file is still present.
+    checked: set[int] = set()
+    for candidate in (
+        server.config.read_runtime_port(),
+        8888,
+        9999,
+        6666,
+        8765,
+    ):
+        if not candidate or candidate in checked:
+            continue
+        checked.add(candidate)
+        _set_port(candidate)
+        if _health():
+            _open("")
+            return 0
 
+    settings = server.config.load_settings()
+    preferred = int(settings.get("server_port", 0) or 0)
+    _set_port(server.config.resolve_server_port(preferred))
     app = server.App()
+    app.server_port = PORT
     try:
         httpd = server.Server(("127.0.0.1", PORT), server.Handler)
         httpd.app = app  # type: ignore[attr-defined]
-    except OSError as exc:
-        _message("Lan.Assistant", f"端口 {PORT} 被其他程序占用，无法启动。\n\n{exc}")
-        return 1
+    except OSError:
+        # The port was taken between the probe and bind; choose again once.
+        _set_port(server.config.resolve_server_port(0))
+        app.server_port = PORT
+        try:
+            httpd = server.Server(("127.0.0.1", PORT), server.Handler)
+            httpd.app = app  # type: ignore[attr-defined]
+        except OSError as exc:
+            _message("Lan.Assistant", f"无法启动本地服务：\n\n{exc}")
+            return 1
 
     app.start_background()
     tts_proc = _start_tts_helper()

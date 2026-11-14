@@ -60,7 +60,7 @@ APP_VERSION = version.VERSION
 APP_DISPLAY_VERSION = version.DISPLAY_VERSION
 APP_WINDOW_TITLE_MARKER = "\u2063"
 STATIC_DIR = config.RESOURCE_DIR / "static"
-DEFAULT_PORT = 8765
+DEFAULT_PORT = 8888
 
 
 def now_iso() -> str:
@@ -507,6 +507,7 @@ class App:
         self.capture_error = ""
         self.device_names = {"other": "", "me": ""}
         self.session_path: Optional[Path] = None
+        self.server_port = DEFAULT_PORT
         self._turns_lock = threading.RLock()
         self._asr_queue: queue.Queue = queue.Queue()
         self._partial_queue: queue.Queue = queue.Queue(maxsize=2)
@@ -607,6 +608,7 @@ class App:
         )
 
     def start_background(self) -> None:
+        config.write_runtime_port(self.server_port)
         if getattr(self, "setup", None) is not None and self.setup.required:
             self.asr_status = "setup"
             self.asr_message = "首次启动：等待模型准备完成"
@@ -1160,6 +1162,7 @@ class App:
             return False
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
+        env["LAN_ASSISTANT_PORT"] = str(self.server_port)
         try:
             self.voice_overlay_proc = subprocess.Popen(
                 command,
@@ -2260,6 +2263,7 @@ class App:
             return False
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
+        env["LAN_ASSISTANT_PORT"] = str(self.server_port)
         try:
             self.overlay_proc = subprocess.Popen(
                 command,
@@ -3031,6 +3035,7 @@ $speaker.Dispose()
             "version": APP_VERSION,
             "display_version": APP_DISPLAY_VERSION,
             "server_time": time.time(),
+            "port": self.server_port,
             "mode": self.mode,
             "overlay_running": self.overlay_running(),
             "continuation": self.continuation,
@@ -3073,6 +3078,7 @@ $speaker.Dispose()
     # ------------------------------------------------------------------ shutdown
     def shutdown(self) -> None:
         self._closed = True
+        config.clear_runtime_port(self.server_port)
         try:
             if self.settings.get("restore_last_mode", True):
                 self.settings = config.save_settings({**self.settings, "app_mode": self.mode})
@@ -3892,7 +3898,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/restart":
             try:
-                _spawn_restart_helper()
+                _spawn_restart_helper(self.app.server_port)
             except Exception as exc:
                 self._error(f"无法启动重启进程：{exc}", 500)
                 return
@@ -4017,7 +4023,47 @@ def _find_edge() -> Optional[Path]:
     return None
 
 
-def _focus_existing_ui() -> bool:
+def _close_stale_ui(port: int) -> None:
+    """Close Lan.Assistant windows left on an older port after a port change."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def _callback(hwnd, _lparam):
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length <= 0:
+                return True
+            buffer = ctypes.create_unicode_buffer(length + 2)
+            user32.GetWindowTextW(hwnd, buffer, length + 2)
+            title = buffer.value.strip()
+            if APP_WINDOW_TITLE_MARKER not in title or "lan.assistant" not in title.lower():
+                return True
+            parts = title.split(APP_WINDOW_TITLE_MARKER)
+            if len(parts) < 3:
+                stale = len(parts) == 2
+            else:
+                stale = bool(parts[1]) and parts[1] != str(port)
+            if not stale:
+                return True
+            klass = ctypes.create_unicode_buffer(128)
+            user32.GetClassNameW(hwnd, klass, 128)
+            if klass.value in ("Chrome_WidgetWin_1", "MozillaWindowClass"):
+                user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+            return True
+
+        user32.EnumWindows(_callback, 0)
+    except Exception:
+        pass
+
+
+def _focus_existing_ui(port: int = 0) -> bool:
     """Bring an already-open Lan.Assistant window to the front.
 
     Clicking the tray page/settings entry used to spawn another Edge --app
@@ -4046,6 +4092,9 @@ def _focus_existing_ui() -> bool:
             if APP_WINDOW_TITLE_MARKER not in title:
                 return True
             if "lan.assistant" not in title.lower():
+                return True
+            parts = title.split(APP_WINDOW_TITLE_MARKER)
+            if len(parts) < 3 or (port and parts[1] != str(port)):
                 return True
             klass = ctypes.create_unicode_buffer(128)
             user32.GetClassNameW(hwnd, klass, 128)
@@ -4135,7 +4184,7 @@ def _kill_stale_voice_overlays() -> None:
         pass
 
 
-def _spawn_restart_helper() -> None:
+def _spawn_restart_helper(port: int) -> None:
     """Start a detached process that relaunches the app after shutdown."""
     if getattr(sys, "frozen", False):
         command = [sys.executable, "--restart-helper"]
@@ -4143,6 +4192,7 @@ def _spawn_restart_helper() -> None:
         command = [sys.executable, str(config.ROOT / "tray.py"), "--restart-helper"]
     # The helper inherits our integrity; it decides whether to request UAC.
     command.append("--admin" if config.load_settings().get("run_as_admin", False) else "--normal")
+    command.extend(["--port", str(int(port))])
     subprocess.Popen(
         command,
         cwd=str(config.ROOT),
@@ -4170,7 +4220,8 @@ def _notify_existing_ui(port: int, suffix: str) -> None:
 
 
 def open_ui(port: int, suffix: str = "") -> None:
-    if _focus_existing_ui():
+    _close_stale_ui(port)
+    if _focus_existing_ui(port):
         _notify_existing_ui(port, suffix)
         return
     url = f"http://127.0.0.1:{port}{suffix}"
@@ -4196,7 +4247,7 @@ def open_ui(port: int, suffix: str = "") -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=APP_NAME)
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--open", action="store_true", help="open the UI after startup")
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
@@ -4205,25 +4256,39 @@ def main() -> int:
         print(f"Missing static directory: {STATIC_DIR}")
         return 1
 
-    # If an instance is already listening, just open it.
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    probe.settimeout(0.5)
-    in_use = probe.connect_ex(("127.0.0.1", args.port)) == 0
-    probe.close()
-    if in_use:
-        print(f"{APP_NAME} 已在运行：http://127.0.0.1:{args.port}")
-        if not args.no_browser:
-            open_ui(args.port)
-        return 0
+    # If a previous instance recorded its runtime port, reuse it.
+    existing = config.read_runtime_port()
+    if existing:
+        try:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{existing}/api/health", timeout=0.8
+            ) as response:
+                if response.status == 200:
+                    print(f"{APP_NAME} 已在运行：http://127.0.0.1:{existing}")
+                    if not args.no_browser:
+                        open_ui(existing)
+                    return 0
+        except Exception:
+            pass
+
+    settings = config.load_settings()
+    preferred = args.port or int(settings.get("server_port", 0) or 0)
+    port = config.resolve_server_port(preferred)
 
     app = App()
-    server = Server(("127.0.0.1", args.port), Handler)
+    app.server_port = port
+    try:
+        server = Server(("127.0.0.1", port), Handler)
+    except OSError:
+        port = config.resolve_server_port(0)
+        app.server_port = port
+        server = Server(("127.0.0.1", port), Handler)
     server.app = app  # type: ignore[attr-defined]
     app.start_background()
-    print(f"\n{APP_NAME} v{APP_VERSION}  ->  http://127.0.0.1:{args.port}\n")
+    print(f"\n{APP_NAME} v{APP_VERSION}  ->  http://127.0.0.1:{port}\n")
     print("音频只在本机处理；不会上传，也不会保存录音。\n")
     if not args.no_browser:
-        threading.Timer(1.0, lambda: open_ui(args.port)).start()
+        threading.Timer(1.0, lambda: open_ui(port)).start()
     try:
         server.serve_forever(poll_interval=0.4)
     except KeyboardInterrupt:

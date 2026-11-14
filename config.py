@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
 import sys
 import threading
 from difflib import SequenceMatcher
@@ -30,6 +31,7 @@ MODELS_DIR = (LOCAL_APP_DIR / "models") if FROZEN or not _PROJECT_HAS_MODELS els
 PROFILE_PATH = local_profile.profile_path()
 LEGACY_PROFILE_PATH = DATA_DIR / "profile.json"
 SETTINGS_PATH = DATA_DIR / "settings.json"
+RUNTIME_PORT_PATH = DATA_DIR / "runtime_port.json"
 ASR_MODEL_DIR = MODELS_DIR / "faster-whisper-large-v3-turbo"
 LLM_MODEL_PATH_35 = MODELS_DIR / "llm" / "Qwen3.5-9B-Q4_K_M.gguf"
 LLM_MODEL_PATH_25 = MODELS_DIR / "llm" / "Qwen2.5-7B-Instruct-Q4_K_M.gguf"
@@ -212,6 +214,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {    "other_device": None,
     "restore_last_mode": True,
     "start_with_windows": False,
     "run_as_admin": False,
+    "server_port": 0,
     "hardware_auto_configure": True,
     "hardware_signature": "",
     "hardware_profile": "auto",
@@ -302,6 +305,69 @@ def save_json(path: Path, value: dict[str, Any]) -> None:
             json.dump(value, handle, ensure_ascii=False, indent=2)
             handle.write("\n")
         os.replace(tmp, path)
+
+
+def port_is_free(port: int) -> bool:
+    if not 1 <= int(port) <= 65535:
+        return False
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind(("127.0.0.1", int(port)))
+        return True
+    except OSError:
+        return False
+    finally:
+        sock.close()
+
+
+def resolve_server_port(preferred: int = 0) -> int:
+    """Pick the configured port, then 8888/9999/6666, then a free random port."""
+    try:
+        preferred = int(preferred or 0)
+    except (TypeError, ValueError):
+        preferred = 0
+    if preferred == 8766:  # reserved by the local TTS helper
+        preferred = 0
+    candidates: list[int] = []
+    if preferred:
+        candidates.append(preferred)
+    for port in (8888, 9999, 6666):
+        if port not in candidates:
+            candidates.append(port)
+    for port in candidates:
+        if port_is_free(port):
+            return port
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+    finally:
+        sock.close()
+
+
+def write_runtime_port(port: int) -> None:
+    try:
+        save_json(RUNTIME_PORT_PATH, {"port": int(port)})
+    except Exception:
+        pass
+
+
+def read_runtime_port() -> int:
+    try:
+        raw = json.loads(RUNTIME_PORT_PATH.read_text(encoding="utf-8"))
+        port = int(raw.get("port", 0) or 0)
+        return port if 1 <= port <= 65535 else 0
+    except Exception:
+        return 0
+
+
+def clear_runtime_port(port: int | None = None) -> None:
+    try:
+        if port is not None and read_runtime_port() not in (0, int(port)):
+            return
+        RUNTIME_PORT_PATH.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 def load_profile() -> dict[str, Any]:
@@ -413,6 +479,13 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
         clean["restore_last_mode"] = bool(clean.get("restore_last_mode", True))
         clean["start_with_windows"] = bool(clean.get("start_with_windows", False))
         clean["run_as_admin"] = bool(clean.get("run_as_admin", False))
+        try:
+            server_port = int(clean.get("server_port", 0) or 0)
+        except (TypeError, ValueError):
+            server_port = 0
+        if server_port and (server_port < 1024 or server_port > 65535 or server_port == 8766):
+            server_port = 0
+        clean["server_port"] = server_port
         clean["hardware_auto_configure"] = bool(clean.get("hardware_auto_configure", True))
         clean["hardware_signature"] = str(clean.get("hardware_signature", "") or "")
         clean["hardware_profile"] = str(clean.get("hardware_profile", "auto") or "auto")

@@ -1,7 +1,8 @@
 """Detached restart helper for Lan.Assistant.
 
-The HTTP server starts this before shutting down.  It waits for port 8765 to be
-released, then starts the same app either with normal or elevated rights.
+The HTTP server starts this before shutting down.  It waits for the current
+runtime port to be released, then starts the same app with normal/elevated
+rights.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import config
 import log_utils
 
 FROZEN = bool(getattr(sys, "frozen", False))
@@ -21,7 +23,13 @@ ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resol
 CREATE_NEW_PROCESS_GROUP = 0x00000200
 DETACHED_PROCESS = 0x00000008
 SW_SHOWNORMAL = 1
-PORT = 8765
+PORT = config.read_runtime_port() or 8888
+for _index, _argument in enumerate(sys.argv):
+    if _argument == "--port" and _index + 1 < len(sys.argv):
+        try:
+            PORT = int(sys.argv[_index + 1])
+        except (TypeError, ValueError):
+            pass
 
 
 def _is_admin() -> bool:

@@ -56,7 +56,8 @@ _enable_dpi_awareness()
 import tkinter as tk
 import tkinter.font as tkfont
 
-STATE_URL = "http://127.0.0.1:8765/api/subtitle"
+PORT = int(os.environ.get("LAN_ASSISTANT_PORT", "8888") or "8888")
+STATE_URL = f"http://127.0.0.1:{PORT}/api/subtitle"
 POLL_SECONDS = 0.15
 HIDE_AFTER_SECONDS = 6.0
 MAX_ABSOLUTE_AGE = 6.0

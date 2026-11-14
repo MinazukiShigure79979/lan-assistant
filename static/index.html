@@ -424,6 +424,32 @@
               <span><b>根据硬件自动调整运行配置</b><small>换电脑时自动选择 CUDA / Vulkan 核显 / CPU，并切换模型和语音识别设备</small></span>
             </label>
           </div>
+
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>本地服务端口</h3>
+                <p class="settings-block-desc">默认从 8888 → 9999 → 6666 依次选择空闲端口，全部冲突时随机分配；也可以固定端口。</p>
+              </div>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>端口策略</span>
+                <select id="setServerPortMode">
+                  <option value="auto">自动（8888 → 9999 → 6666 → 随机）</option>
+                  <option value="8888">固定 8888</option>
+                  <option value="9999">固定 9999</option>
+                  <option value="6666">固定 6666</option>
+                  <option value="custom">自定义端口…</option>
+                </select>
+              </label>
+              <label class="field" id="serverPortCustomField">
+                <span>自定义端口</span>
+                <input type="number" id="setServerPortCustom" min="1024" max="65535" step="1" inputmode="numeric">
+              </label>
+            </div>
+            <div class="device-hint">当前实际端口：<b id="currentServerPort">—</b>。修改后需要重启应用；如果固定端口被占用，会自动回退到其他端口。</div>
+          </div>
         </div>
 
         <div class="settings-section" data-settings-tab="common">
@@ -1246,7 +1272,7 @@
           </div>
         </div>
         <dl class="about-grid">
-          <dt>运行方式</dt><dd>本机 127.0.0.1:8765 · 托盘常驻</dd>
+          <dt>运行方式</dt><dd>本机 127.0.0.1 · 托盘常驻</dd>
           <dt>语音识别</dt><dd>faster-whisper large-v3-turbo（CUDA / CPU 自动回退）</dd>
           <dt>语言模型</dt><dd>本地 Qwen 或 DeepSeek / OpenAI 兼容 API</dd>
           <dt>数据位置</dt><dd>源码：项目 data；安装版：%LOCALAPPDATA%\Lan.Assistant</dd>
@@ -1303,7 +1329,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
-  <script src="/static/i18n.js?v=23"></script>
-  <script src="/static/app.js?v=85"></script>
+  <script src="/static/i18n.js?v=24"></script>
+  <script src="/static/app.js?v=86"></script>
 </body>
 </html>
