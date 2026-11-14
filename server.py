@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import ctypes
 import difflib
 import io
 import json
@@ -1153,6 +1154,7 @@ class App:
             return False
         if self.voice_overlay_running():
             return True
+        _kill_stale_voice_overlays()
         command = self._helper_command("voice_overlay.py", "--voice-overlay")
         if command is None:
             return False
@@ -4021,6 +4023,71 @@ def _focus_existing_ui() -> bool:
         return True
     except Exception:
         return False
+
+
+def _kill_stale_voice_overlays() -> None:
+    """Remove an orphaned Tk voice window from an earlier app process."""
+    if sys.platform != "win32":
+        return
+    try:
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def _callback(hwnd, _lparam):
+            # Hidden windows (after a cancel) still need cleanup.
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length <= 0:
+                return True
+            buffer = ctypes.create_unicode_buffer(length + 2)
+            user32.GetWindowTextW(hwnd, buffer, length + 2)
+            title = buffer.value
+            if "Lan.Assistant" not in title or "语音输入" not in title:
+                return True
+            klass = ctypes.create_unicode_buffer(128)
+            user32.GetClassNameW(hwnd, klass, 128)
+            if "Tk" not in klass.value:
+                return True
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if not pid.value or int(pid.value) == os.getpid():
+                return True
+            handle = kernel32.OpenProcess(0x0001, False, pid.value)  # PROCESS_TERMINATE
+            if handle:
+                try:
+                    kernel32.TerminateProcess(handle, 1)
+                finally:
+                    kernel32.CloseHandle(handle)
+            return True
+
+        user32.EnumWindows(_callback, 0)
+    except Exception:
+        pass
+    # A hidden Tk window can outlive its old server process and no longer have
+    # a discoverable title.  Remove any orphaned overlay helper as a fallback.
+    try:
+        subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-WindowStyle",
+                "Hidden",
+                "-Command",
+                (
+                    "Get-CimInstance Win32_Process -Filter \"Name='pythonw.exe'\" | "
+                    "Where-Object { $_.CommandLine -like '*voice_overlay.py*' } | "
+                    "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+                ),
+            ],
+            capture_output=True,
+            timeout=5,
+            creationflags=0x08000000,
+        )
+    except Exception:
+        pass
 
 
 def _spawn_restart_helper() -> None:

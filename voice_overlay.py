@@ -31,6 +31,29 @@ _log = LOG.open("a", encoding="utf-8", buffering=1)
 sys.stdout = _log
 sys.stderr = _log
 
+
+def _enable_dpi_awareness() -> None:
+    """Must run before Tk initializes, otherwise DWM bitmap-stretches the UI."""
+    if sys.platform != "win32":
+        return
+    try:
+        if ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4)):
+            return
+    except Exception:
+        pass
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+        return
+    except Exception:
+        pass
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+
+_enable_dpi_awareness()
+
 import tkinter as tk
 import tkinter.font as tkfont
 
@@ -94,6 +117,7 @@ def _round_window(root: tk.Tk) -> None:
 class VoiceWindow:
     def __init__(self) -> None:
         self.root = tk.Tk()
+        self.ui_scale = max(1.0, round(self.root.winfo_fpixels("1i") / 96.0, 3))
         self.root.title("Lan.Assistant · 语音输入")
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
@@ -112,6 +136,9 @@ class VoiceWindow:
         _round_window(self.root)
         self.root.after(200, self.poll)
         threading.Thread(target=self._poll_loop, name="voice-overlay-poll", daemon=True).start()
+
+    def _px(self, value: float) -> int:
+        return max(1, int(round(value * self.ui_scale)))
 
     def _build(self) -> None:
         self.shell = tk.Frame(self.root, bg=BG, highlightthickness=1, highlightbackground=LINE)
@@ -170,7 +197,7 @@ class VoiceWindow:
             anchor="w",
             font=(FONT, 10),
             justify="left",
-            wraplength=620,
+            wraplength=self._px(620),
         )
         self.hint.pack(fill="x", padx=18, pady=(1, 5))
 
@@ -364,11 +391,11 @@ class VoiceWindow:
         self.actions.pack_forget()
         self._set_noactivate(True)
         if small:
-            width, height = 440, 122
+            width, height = self._px(440), self._px(122)
             x = max(0, (self.screen_w - width) // 2)
-            y = 42
+            y = self._px(42)
         else:
-            width, height = 560, 190
+            width, height = self._px(560), self._px(190)
             x = max(0, (self.screen_w - width) // 2)
             y = max(0, (self.screen_h - height) // 3)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
@@ -401,9 +428,9 @@ class VoiceWindow:
         self.btn_translated.configure(state="normal" if translated else "disabled")
         self.translated_label.configure(text="译文" if translated else "译文（未开启）")
         self._set_noactivate(False)
-        width, height = 640, 540
+        width, height = self._px(640), self._px(540)
         x = max(0, (self.screen_w - width) // 2)
-        y = max(0, (self.screen_h - height) // 2 - 35)
+        y = max(0, (self.screen_h - height) // 2 - self._px(35))
         self.root.geometry(f"{width}x{height}+{x}+{y}")
         self.root.deiconify()
         self.root.lift()
