@@ -1,5 +1,11 @@
 # Lan.Assistant
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue.svg)](#)
+[![Python](https://img.shields.io/badge/python-3.12-3776AB.svg)](https://www.python.org/)
+
+> A local-first Windows tray assistant for real-time English calls: live transcription, bilingual subtitles, answer suggestions, voice dictation, and meeting notes. Audio stays on the machine. Powered by Whisper + Ollama.
+
 当前版本：**v1.0**（版本号统一维护在 `version.py`）
 
 界面支持 **中文 / English / 日本語 / 한국어**。首次启动按 Windows 系统界面语言选择，不支持的语言默认英文；切换界面语言时会同步各功能的默认识别/翻译语言。
@@ -9,6 +15,33 @@ Lan.Assistant 是运行在 Windows 电脑上的实时语音助手：既能做通
 **音频只在本机处理，不上传、不保存录音。** 默认的本地模式连文字也不上传；如果主动切换到 DeepSeek 等 API，只有对话文字会发给你选择的服务商。
 
 ![界面预览](docs/preview.png)
+
+## 个人项目说明
+
+这是一个个人业余项目，不是商业产品，也没有公司或团队在背后维护。
+
+- 随缘更新，不承诺响应时间、兼容性或长期维护
+- 不提供付费支持、SLA 或定制服务
+- 使用前请自行确认所在地区关于录音、通话和会议记录的法律要求
+- 请勿用于违反考试、面试、公司规定或侵犯他人隐私的场景
+- 软件按现状提供，不对识别/翻译/生成结果的准确性作保证
+
+如果它刚好帮到你，欢迎提 Issue 或 PR；如果不符合你的需求，也可以直接 Fork。
+
+## 下载
+
+Windows 安装包见 [GitHub Releases](https://github.com/MinazukiShigure79979/lan-assistant/releases)。
+
+安装包当前**未做 Authenticode 代码签名**，Windows 可能提示“发布者未知”。介意的话可以从源码运行或自行构建。
+
+## 主要功能
+
+- **通话副驾**：系统声音 + 麦克风，实时转写对方的话并生成回答建议
+- **听读翻译**：只采集系统声音，生成原文 + 中文双语悬浮字幕
+- **语音输入**：全局快捷键录音，校对后插入任意输入框
+- **会议纪要**：双声道转写，停止后生成摘要、关键讨论和待办
+- **本地优先**：Whisper + Ollama 本地运行，音频不上传、不保存录音
+- **多语言界面**：中文 / English / 日本語 / 한국어
 
 ---
 
@@ -768,3 +801,12 @@ python -m venv .venv
 - DeepSeek API：普通回答通常 **1–3 秒**；2 分钟长稿通常更快，具体取决于网络和账户限流。
 
 如果明天通话时觉得慢，先关掉游戏和视频软件；如果还是觉得回答质量不够，切到 DeepSeek API。这是最有效的两个优化。
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 MinazukiShigure79979
+
+This is a personal hobby project. The software is provided “as is”, without warranty of any kind. You are responsible for complying with local laws and the rules of the services you use.
+

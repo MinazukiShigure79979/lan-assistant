@@ -40,3 +40,6 @@ desktop.ini
 
 # Personal call-review notes are kept outside the code repository
 docs/call-review-*.md
+
+# Internal notes
+docs/internal/
