@@ -540,6 +540,19 @@
         );
         if (state.mode === "meeting") renderMeetingNotes();
         break;
+      case "ui_navigate": {
+        const suffix = String((d && d.suffix) || "/");
+        const query = suffix.includes("?") ? suffix.split("?")[1] : "";
+        const params = new URLSearchParams(query);
+        if (params.get("settings") === "1") {
+          openSettings(params.get("tab") || state.mode);
+        } else if (params.get("proofread") === "1") {
+          openSubtitleEditor();
+        } else {
+          window.location.href = suffix;
+        }
+        break;
+      }
       case "levels":
         state.levels = d;
         renderLevels();

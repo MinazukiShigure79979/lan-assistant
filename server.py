@@ -17,6 +17,7 @@ import threading
 import time
 import traceback
 import urllib.parse
+import urllib.request
 import webbrowser
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -3689,6 +3690,13 @@ class Handler(BaseHTTPRequestHandler):
             self.app.bus.publish({"type": "mode", "data": {"mode": mode}})
             self._json({"ok": True, "mode": mode})
             return
+        if path == "/api/ui/navigate":
+            suffix = str(body.get("suffix", "") or "")
+            if not suffix.startswith("/"):
+                suffix = "/" + suffix
+            self.app.bus.publish({"type": "ui_navigate", "data": {"suffix": suffix}})
+            self._json({"ok": True})
+            return
         if path == "/api/diarization/download":
             model_id = str(
                 body.get("model")
@@ -3890,7 +3898,77 @@ def _find_edge() -> Optional[Path]:
     return None
 
 
+def _focus_existing_ui() -> bool:
+    """Bring an already-open Lan.Assistant window to the front.
+
+    Clicking the tray page/settings entry used to spawn another Edge --app
+    window every time.  Match the visible browser/app window by title, focus it
+    and let the caller skip creating a duplicate.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        found: list[int] = []
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def _callback(hwnd, _lparam):
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length <= 0:
+                return True
+            buffer = ctypes.create_unicode_buffer(length + 2)
+            user32.GetWindowTextW(hwnd, buffer, length + 2)
+            title = buffer.value.strip()
+            if "lan.assistant" not in title.lower():
+                return True
+            klass = ctypes.create_unicode_buffer(128)
+            user32.GetClassNameW(hwnd, klass, 128)
+            # Browser app windows are Chromium/Chrome_WidgetWin_1 (Edge/Chrome)
+            # or MozillaWindowClass (Firefox).  Avoid focusing a terminal or
+            # another random process that happens to mention the app name.
+            if klass.value not in ("Chrome_WidgetWin_1", "MozillaWindowClass"):
+                return True
+            found.append(int(hwnd))
+            return False
+
+        user32.EnumWindows(_callback, 0)
+        if not found:
+            return False
+        hwnd = found[0]
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+        user32.SetForegroundWindow(hwnd)
+        user32.BringWindowToTop(hwnd)
+        return True
+    except Exception:
+        return False
+
+
+def _notify_existing_ui(port: int, suffix: str) -> None:
+    if not suffix or suffix == "/":
+        return
+    try:
+        payload = json.dumps({"suffix": suffix}).encode("utf-8")
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/ui/navigate",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(request, timeout=1.0).read()
+    except Exception:
+        pass
+
+
 def open_ui(port: int, suffix: str = "") -> None:
+    if _focus_existing_ui():
+        _notify_existing_ui(port, suffix)
+        return
     url = f"http://127.0.0.1:{port}{suffix}"
     edge = _find_edge()
     try:
