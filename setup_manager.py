@@ -19,6 +19,7 @@ import os
 import shutil
 import threading
 import time
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -31,6 +32,18 @@ import version
 
 SETUP_PATH = config.DATA_DIR / "setup.json"
 OLLAMA_ZIP_URL = "https://ollama.com/download/ollama-windows-amd64.zip"
+OLLAMA_SOURCES = [
+    {
+        "id": "official",
+        "name": "Ollama 官方",
+        "url": OLLAMA_ZIP_URL,
+    },
+    {
+        "id": "github",
+        "name": "GitHub Release",
+        "url": "https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip",
+    },
+]
 HF_ENDPOINT = os.environ.get("LAN_HF_ENDPOINT", "https://hf-mirror.com")
 
 WHISPER_OPTIONS: list[dict[str, Any]] = [
@@ -174,6 +187,7 @@ class SetupManager:
         self._installing_ollama = False
         self._downloading = False
         self._downloads: dict[str, dict[str, Any]] = {}
+        self._ollama_source_url = OLLAMA_ZIP_URL
         self._hardware: dict[str, Any] = dict(getattr(app, "hardware", {}) or {})
         self._recommended: dict[str, str] = {}
         self._whisper: list[dict[str, Any]] = []
@@ -273,6 +287,8 @@ class SetupManager:
                     "installed": config.OLLAMA_BIN.exists(),
                     "path": str(config.OLLAMA_BIN),
                 },
+                "ollama_sources": [dict(item) for item in OLLAMA_SOURCES],
+                "ollama_source_url": self._ollama_source_url,
                 "hardware": self._hardware,
                 "recommended": dict(self._recommended),
                 "whisper": [dict(row) for row in self._whisper],
@@ -293,7 +309,23 @@ class SetupManager:
         except Exception:
             pass
 
-    def install_ollama_async(self) -> bool:
+    def install_ollama_async(self, source_url: str = "") -> bool:
+        raw_url = str(source_url or "").strip()
+        if raw_url:
+            try:
+                parsed = urllib.parse.urlparse(raw_url)
+                if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                    raise ValueError("unsupported URL")
+            except Exception:
+                with self._lock:
+                    self._error = "Ollama 下载地址无效，请填写 http/https ZIP 地址。"
+                    self._stage = "error"
+                    self._message = self._error
+                self._publish()
+                return False
+            selected_url = raw_url[:1000]
+        else:
+            selected_url = OLLAMA_ZIP_URL
         with self._lock:
             if self._busy:
                 return False
@@ -301,6 +333,7 @@ class SetupManager:
                 self._stage = "models" if not _has_all_models() else "done"
                 self._message = "Ollama 已就绪。"
                 return True
+            self._ollama_source_url = selected_url
             self._busy = True
             self._installing_ollama = True
             self._error = ""
@@ -339,8 +372,9 @@ class SetupManager:
         archive = downloads / "ollama-windows-amd64.zip"
         self._set(_progress=0.0, _message="正在下载 Ollama（约 1.6 GB）…")
         self._publish()
+        source_url = str(getattr(self, "_ollama_source_url", OLLAMA_ZIP_URL) or OLLAMA_ZIP_URL)
         request = urllib.request.Request(
-            OLLAMA_ZIP_URL,
+            source_url,
             headers={"User-Agent": "Lan.Assistant-Setup/1.0"},
         )
         with urllib.request.urlopen(request, timeout=60) as response:

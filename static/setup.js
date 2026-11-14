@@ -13,6 +13,9 @@
     ollamaMessage: $("#ollamaMessage"),
     ollamaError: $("#ollamaError"),
     retryOllama: $("#retryOllama"),
+    ollamaSource: $("#ollamaSource"),
+    ollamaCustomUrl: $("#ollamaCustomUrl"),
+    installOllama: $("#installOllama"),
     hardwareLine: $("#hardwareLine"),
     whisperList: $("#whisperList"),
     llmList: $("#llmList"),
@@ -30,9 +33,12 @@
   const selectedWhisper = new Set();
   const selectedLlm = new Set();
   let current = null;
-  let autoInstallRequested = false;
   let renderedOptionsKey = "";
   let pollTimer = null;
+  const OLLAMA_SOURCES = {
+    official: "https://ollama.com/download/ollama-windows-amd64.zip",
+    github: "https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip",
+  };
 
   async function api(path, options = {}) {
     const response = await fetch(path, {
@@ -210,14 +216,15 @@
       els.ollamaMessage.textContent = state.message || "下载约 1.6 GB，请保持网络连接。";
       els.ollamaError.textContent = state.error || "";
       els.ollamaError.classList.toggle("hidden", !state.error);
-      els.retryOllama.classList.toggle("hidden", !state.error);
-      if (!installing && !state.error && !autoInstallRequested) {
-        autoInstallRequested = true;
-        api("/api/setup/install-ollama", { method: "POST", body: "{}" }).catch((err) => {
-          els.ollamaError.textContent = err.message;
-          els.ollamaError.classList.remove("hidden");
-          autoInstallRequested = false;
-        });
+      els.retryOllama.classList.add("hidden");
+      const custom = els.ollamaSource && els.ollamaSource.value === "custom";
+      if (els.ollamaCustomUrl) els.ollamaCustomUrl.classList.toggle("hidden", !custom);
+      if (els.ollamaSource) els.ollamaSource.disabled = installing;
+      if (els.ollamaCustomUrl) els.ollamaCustomUrl.disabled = installing;
+      if (els.installOllama) {
+        els.installOllama.classList.toggle("hidden", installing);
+        els.installOllama.disabled = installing;
+        els.installOllama.textContent = state.error ? "重试安装" : "下载并安装 Ollama";
       }
       return;
     }
@@ -260,17 +267,52 @@
     }
   }
 
-  els.downloadBtn.addEventListener("click", startDownload);
-  els.retryOllama.addEventListener("click", async () => {
-    autoInstallRequested = false;
-    els.retryOllama.classList.add("hidden");
+  async function startOllamaInstall() {
+    const selected = els.ollamaSource ? els.ollamaSource.value : "official";
+    const sourceUrl = selected === "custom"
+      ? (els.ollamaCustomUrl ? els.ollamaCustomUrl.value.trim() : "")
+      : OLLAMA_SOURCES[selected] || OLLAMA_SOURCES.official;
+    if (!/^https?:\/\//i.test(sourceUrl)) {
+      els.ollamaError.textContent = "请填写有效的 http/https Ollama ZIP 地址。";
+      els.ollamaError.classList.remove("hidden");
+      return;
+    }
+    if (els.installOllama) {
+      els.installOllama.disabled = true;
+      els.installOllama.textContent = "正在安装…";
+    }
+    els.ollamaError.classList.add("hidden");
     try {
-      await api("/api/setup/install-ollama", { method: "POST", body: "{}" });
+      const result = await api("/api/setup/install-ollama", {
+        method: "POST",
+        body: JSON.stringify({ source_url: sourceUrl }),
+      });
+      if (result.error) throw new Error(result.error);
+      refresh();
     } catch (err) {
       els.ollamaError.textContent = err.message;
       els.ollamaError.classList.remove("hidden");
+      if (els.installOllama) {
+        els.installOllama.disabled = false;
+        els.installOllama.textContent = "重试安装";
+      }
     }
-  });
+  }
+
+  els.downloadBtn.addEventListener("click", startDownload);
+  if (els.installOllama) {
+    els.installOllama.addEventListener("click", startOllamaInstall);
+  }
+  if (els.ollamaSource) {
+    els.ollamaSource.addEventListener("change", () => {
+      const custom = els.ollamaSource.value === "custom";
+      if (els.ollamaCustomUrl) {
+        els.ollamaCustomUrl.classList.toggle("hidden", !custom);
+        if (custom) els.ollamaCustomUrl.focus();
+      }
+    });
+  }
+  els.retryOllama.addEventListener("click", startOllamaInstall);
 
   refresh();
   pollTimer = window.setInterval(refresh, 1000);

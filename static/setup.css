@@ -81,6 +81,13 @@ button, input { font: inherit; }
 .bar { height: 7px; margin-top: 13px; overflow: hidden; border-radius: 6px; background: rgba(255,255,255,.07); }
 .bar i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2f7cff, #6ec6ff); transition: width .35s ease; }
 .install-note { margin-top: 10px; color: var(--faint); font-size: 10px; line-height: 1.6; }
+.setup-source-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; max-width: 920px; margin: 16px 0 6px; }
+.setup-source-row label { color: var(--muted); font-size: 11px; }
+.setup-source-row select, .setup-source-row input { height: 36px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: rgba(0,0,0,.18); color: var(--text); font-size: 11px; outline: none; }
+.setup-source-row select:focus, .setup-source-row input:focus { border-color: rgba(92,156,255,.55); }
+#ollamaSource { min-width: 190px; }
+#ollamaCustomUrl { flex: 1 1 360px; min-width: 260px; }
+#installOllama { margin-left: auto; }
 .error-box { max-width: 740px; margin-top: 14px; padding: 11px 12px; border: 1px solid rgba(255,133,133,.28); border-radius: 8px; color: #ffc0c0; background: rgba(255,133,133,.07); font-size: 11px; line-height: 1.6; white-space: pre-wrap; }
 .hardware-line { padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: 10.5px; line-height: 1.6; }
 .model-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }

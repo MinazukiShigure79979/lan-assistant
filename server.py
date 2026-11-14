@@ -3400,7 +3400,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": True, **result})
             return
         if path == "/api/setup/install-ollama":
-            started = self.app.setup.install_ollama_async()
+            started = self.app.setup.install_ollama_async(
+                str(body.get("source_url", "") or "")
+            )
             self._json(
                 {
                     "ok": started or self.app.setup.public_state().get("ollama", {}).get("installed", False),

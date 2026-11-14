@@ -67,7 +67,7 @@ Lan.Assistant 是运行在 Windows 电脑上的实时语音助手：既能做通
 
 以后的安装包只包含程序，不包含 Ollama 和模型。首次启动会进入设置页：
 
-1. 自动下载便携版 Ollama 到 `%LOCALAPPDATA%\Lan.Assistant\ollama`（不需要管理员权限）
+1. 在首次设置页选择 Ollama 下载源（官方 / GitHub / 自定义 ZIP），点击下载便携版到 `%LOCALAPPDATA%\Lan.Assistant\ollama`（不需要管理员权限）
 2. 根据当前电脑自动勾选一个推荐 Whisper 和一个推荐 Qwen 模型
 3. 允许手动勾选其它模型
 4. 下载完成后才启动语音识别、语言模型和主界面
@@ -304,6 +304,18 @@ Lan.Assistant 是运行在 Windows 电脑上的实时语音助手：既能做通
 - 说话人区分模型也会优先使用所选源，失败后回退官方 GitHub / 内置镜像
 
 下载时会优先使用所选源；如果失败，会回退到内置镜像。
+
+### Ollama 下载源
+
+Ollama 运行时不随安装包分发，首次启动的 **安装 Ollama** 页面单独选择：
+
+- **Ollama 官方**：`https://ollama.com/download/ollama-windows-amd64.zip`（默认）
+- **GitHub Release**：`https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip`
+- **自定义地址**：任意 http/https 的 Ollama 便携版 ZIP
+
+下载约 1.6 GB。选择源后需要点「下载并安装 Ollama」，不再自动开始下载；失败时可以切换源重试。
+
+这个源与 Whisper / GGUF 的 Hugging Face 下载源相互独立。
 
 自动选择规则：
 

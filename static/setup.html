@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>首次设置 · Lan.Assistant</title>
-  <link rel="stylesheet" href="/static/setup.css?v=2">
+  <link rel="stylesheet" href="/static/setup.css?v=3">
 </head>
 <body>
   <main class="setup-shell">
@@ -31,7 +31,18 @@
     <section id="ollamaPanel" class="setup-panel hidden">
       <div class="section-kicker">RUNTIME</div>
       <h1>准备本地运行环境</h1>
-      <p class="lead">Lan.Assistant 不把 Ollama 打包进安装包。首次启动会自动下载便携版，放在当前 Windows 用户的本地目录，不需要管理员权限。</p>
+      <p class="lead">Lan.Assistant 不把 Ollama 打包进安装包。首次启动需要下载便携版，放在当前 Windows 用户的本地目录，不需要管理员权限。下载源可以切换。</p>
+      <div class="setup-source-row">
+        <label for="ollamaSource">Ollama 下载源</label>
+        <select id="ollamaSource">
+          <option value="official">Ollama 官方（默认）</option>
+          <option value="github">GitHub Release</option>
+          <option value="custom">自定义地址…</option>
+        </select>
+        <input id="ollamaCustomUrl" class="hidden" type="text" maxlength="1000" placeholder="https://example.com/ollama-windows-amd64.zip" autocomplete="off">
+        <button id="installOllama" class="btn btn-primary" type="button">下载并安装 Ollama</button>
+      </div>
+      <div class="install-note">下载约 1.6 GB。官方源较慢时，可以切到 GitHub 或填写自定义 ZIP 地址。</div>
       <div class="install-box">
         <div class="install-row">
           <span>Ollama 便携版</span>
@@ -101,6 +112,6 @@
     </footer>
   </main>
   <script src="/static/i18n.js?v=2"></script>
-  <script src="/static/setup.js?v=2"></script>
+  <script src="/static/setup.js?v=3"></script>
 </body>
 </html>
