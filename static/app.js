@@ -2123,11 +2123,28 @@
       els.modelManagerList.appendChild(make("div", "model-status", "还没有模型条目。"));
       return;
     }
-    for (const item of data.models) {
+    const kindOrder = { whisper: 0, llm: 1, diarization: 2 };
+    const kindLabels = {
+      whisper: "语音识别模型",
+      llm: "语言模型",
+      diarization: "说话人区分模型",
+    };
+    const kindBadges = { whisper: "ASR", llm: "LLM", diarization: "DIA" };
+    const models = [...(data.models || [])].sort(
+      (a, b) => (kindOrder[a.kind] ?? 9) - (kindOrder[b.kind] ?? 9)
+    );
+    let lastKind = "";
+    for (const item of models) {
+      if (item.kind !== lastKind) {
+        lastKind = item.kind;
+        els.modelManagerList.appendChild(
+          make("div", "model-group-title", kindLabels[item.kind] || item.kind)
+        );
+      }
       const row = make("div", "model-row");
       const main = make("div", "model-row-main");
       const title = make("div", "model-row-title");
-      title.appendChild(make("span", "model-kind", item.kind === "whisper" ? "ASR" : "LLM"));
+      title.appendChild(make("span", "model-kind", kindBadges[item.kind] || "MODEL"));
       title.appendChild(make("b", "", item.label || item.name || "未命名模型"));
       if (item.custom) title.appendChild(make("span", "model-kind", "自定义"));
       main.appendChild(title);
@@ -2163,10 +2180,17 @@
             body: { id: item.id },
           });
           state.modelManagement = res.management || null;
+          if (res.settings) state.settings = res.settings;
           state.models = await api("/api/models?refresh=1");
           renderModelChoices(state.settings);
           renderModelManagement();
           renderHardware();
+          if (item.kind === "diarization") {
+            await refreshDiarization(
+              (els.setDiarizationModel && els.setDiarizationModel.value) || "",
+              false
+            );
+          }
           toast("模型已删除", "good");
         } catch (err) {
           toast(err.message, "bad");
@@ -2348,7 +2372,7 @@
     if (els.meetingDiarizationHint) {
       els.meetingDiarizationHint.textContent = enabled
         ? "停止记录后会在本机离线区分不同与会人，再生成带 Speaker 标签的纪要。"
-        : "还没有可用的声纹模型；请先到「模型（全局）→ 说话人区分模型」下载。";
+        : "还没有可用的声纹模型；请先到「模型设置 → 本地模型选择」下载。";
     }
   }
 
@@ -2471,10 +2495,10 @@
         call: "通话副驾", translate: "听读翻译", voice: "语音输入", meeting: "会议纪要",
       };
       els.settingsScopeHint.textContent = active === "common"
-        ? "全局设置：音频设备、识别模型、存储和运行环境，对所有工作区生效。"
+        ? "全局设置：音频设备、存储和运行环境，对所有工作区生效。"
         : active === "model"
-          ? "全局模型：本地 / DeepSeek / 其他 API，对所有工作区生效。"
-          : `功能设置：以下只影响「${labels[active] || active}」。音频、识别模型和模型提供商在全局设置中。`;
+          ? "模型设置：语音识别、语言模型、说话人区分模型，以及本地模型文件管理。"
+          : `功能设置：以下只影响「${labels[active] || active}」。音频设备、识别模型和模型设置在「全局设置 / 模型设置」里。`;
     }
   }
 

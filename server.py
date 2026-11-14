@@ -3369,8 +3369,22 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/model-management/delete":
             try:
-                result = models.delete_model(str(body.get("id", "") or ""))
-                self._json({"ok": True, "management": result})
+                deleted_id = str(body.get("id", "") or "")
+                result = models.delete_model(deleted_id)
+                if deleted_id.startswith("diarization-") and not diarization.is_ready(
+                    str(self.app.settings.get("diarization_model", diarization.DEFAULT_MODEL) or "")
+                ):
+                    self.app.settings = config.save_settings(
+                        {**self.app.settings, "diarization_enabled": False}
+                    )
+                    self.app.brain.set_settings(self.app.settings)
+                self._json(
+                    {
+                        "ok": True,
+                        "management": result,
+                        "settings": config.public_settings(self.app.settings),
+                    }
+                )
             except Exception as exc:
                 self._error(f"删除模型失败：{exc}", 400)
             return

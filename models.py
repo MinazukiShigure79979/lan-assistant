@@ -428,6 +428,49 @@ def _model_state(entry: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
+def _diarization_rows() -> list[dict[str, Any]]:
+    """Built-in diarization files are managed alongside ASR/LLM models."""
+    try:
+        import diarization
+    except Exception:
+        return []
+    rows: list[dict[str, Any]] = []
+    entries = [
+        (
+            "diarization-segmentation",
+            "pyannote Segmentation 3.0",
+            diarization.SEGMENTATION_MODEL,
+        ),
+    ]
+    for model_id, info in diarization.EMBEDDING_MODELS.items():
+        entries.append(
+            (
+                f"diarization-{model_id}",
+                f"{info['short']}（说话人声纹）",
+                diarization.embedding_path(model_id),
+            )
+        )
+    for model_id, label, path in entries:
+        try:
+            size = path.stat().st_size if path.is_file() else 0
+        except Exception:
+            size = 0
+        downloaded = size > 1_000_000
+        rows.append(
+            {
+                "id": model_id,
+                "kind": "diarization",
+                "label": label,
+                "path": str(path),
+                "downloaded": downloaded,
+                "size_bytes": size,
+                "size": _human_size(size) if downloaded else "—",
+                "custom": False,
+            }
+        )
+    return rows
+
+
 def management(refresh: bool = False) -> dict[str, Any]:
     # Do not use the model cache here: the management page is the place where
     # deletes/adds must be reflected immediately.
@@ -435,6 +478,12 @@ def management(refresh: bool = False) -> dict[str, Any]:
     seen: set[str] = set()
     for entry in _DEFAULT_MODELS + _load_custom():
         row = _model_state(entry)
+        key = f"{row['kind']}:{row['path']}"
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(row)
+    for row in _diarization_rows():
         key = f"{row['kind']}:{row['path']}"
         if key in seen:
             continue
@@ -495,6 +544,24 @@ def add_custom(kind: str, label: str, path: str, source: str = "", size_hint: st
 
 
 def delete_model(model_id: str) -> dict[str, Any]:
+    if str(model_id).startswith("diarization-"):
+        row = next(
+            (item for item in _diarization_rows() if str(item["id"]) == str(model_id)),
+            None,
+        )
+        if not row:
+            raise ValueError("找不到这个说话人区分模型")
+        path = Path(str(row["path"]))
+        if not row.get("downloaded"):
+            raise ValueError("这个模型还没有下载")
+        if not _is_under_models(path):
+            raise ValueError("拒绝删除 models 目录之外的文件")
+        try:
+            path.unlink()
+        except OSError as exc:
+            raise ValueError(f"删除失败：{exc}") from exc
+        _CACHE["data"] = None
+        return management(refresh=True)
     target = None
     custom_entry = None
     custom = _load_custom()
