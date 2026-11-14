@@ -31,6 +31,9 @@ SEGMENTATION_FALLBACK_URL = (
     "https://hf-mirror.com/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/"
     "resolve/main/model.onnx"
 )
+SEGMENTATION_HF_PATH = "csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
+DEFAULT_HF_BASE = "https://hf-mirror.com"
+OFFICIAL_HF_BASE = "https://huggingface.co"
 
 EMBEDDING_MODELS: dict[str, dict[str, Any]] = {
     "wespeaker_en_voxceleb_resnet34": {
@@ -47,6 +50,7 @@ EMBEDDING_MODELS: dict[str, dict[str, Any]] = {
             "https://hf-mirror.com/chengdongliang/wespeaker/resolve/main/"
             "voxceleb_resnet34_LM.onnx"
         ),
+        "fallback_path": "chengdongliang/wespeaker/resolve/main/voxceleb_resnet34_LM.onnx",
         "needs_metadata": True,
         "size": "26 MB",
         "license": "CC-BY-4.0",
@@ -68,6 +72,41 @@ _state: dict[str, Any] = {
 
 def _ensure_dir() -> None:
     DIARIZATION_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _source_bases() -> list[str]:
+    """Return the selected HF mirror first, then built-in fallbacks."""
+    bases: list[str] = []
+    try:
+        settings = config.load_settings()
+        selected_id = str(settings.get("model_download_source", "hf-mirror") or "hf-mirror")
+        sources = settings.get("model_download_sources")
+        if isinstance(sources, list):
+            selected = next(
+                (item for item in sources if isinstance(item, dict) and str(item.get("id")) == selected_id),
+                None,
+            )
+            if selected and str(selected.get("url", "") or "").strip():
+                bases.append(str(selected["url"]).strip().rstrip("/"))
+    except Exception:
+        pass
+    for value in (DEFAULT_HF_BASE, OFFICIAL_HF_BASE):
+        if value not in bases:
+            bases.append(value)
+    return bases
+
+
+def _download_from_sources(path: str, target: Path, start: int, end: int) -> None:
+    last_error: Exception | None = None
+    for base in _source_bases():
+        try:
+            _download(f"{base}/{path.lstrip('/')}", target, start, end)
+            if target.is_file() and target.stat().st_size > 1_000_000:
+                return
+            raise RuntimeError("下载文件不完整")
+        except Exception as exc:
+            last_error = exc
+    raise RuntimeError(str(last_error or "模型下载源均不可用"))
 
 
 def embedding_path(model_id: str) -> Path:
@@ -199,17 +238,23 @@ def _component_worker(kind: str, model_id: str) -> None:
 def _download_segmentation() -> None:
     if SEGMENTATION_MODEL.is_file():
         return
+    _ensure_dir()
+    with _lock:
+        _state.update({"status": "downloading", "progress": 0, "message": "正在下载分割模型…"})
+    source_error: Exception | None = None
+    try:
+        _download_from_sources(SEGMENTATION_HF_PATH, SEGMENTATION_MODEL, 0, 45)
+        return
+    except Exception as exc:
+        source_error = exc
     archive = DIARIZATION_DIR / "segmentation.tar.bz2"
     try:
         _download(SEGMENTATION_URL, archive, 0, 40)
         with _lock:
             _state.update({"status": "extracting", "progress": 42, "message": "正在解压分割模型…"})
         _extract(archive, DIARIZATION_DIR)
-    except Exception:
-        with _lock:
-            _state.update({"progress": 40, "message": "官方下载较慢，正在切换镜像…"})
-        SEGMENTATION_DIR.mkdir(parents=True, exist_ok=True)
-        _download(SEGMENTATION_FALLBACK_URL, SEGMENTATION_MODEL, 40, 45)
+    except Exception as exc:
+        raise RuntimeError(f"分割模型下载失败：{exc}；镜像：{source_error}") from exc
     finally:
         archive.unlink(missing_ok=True)
     if not SEGMENTATION_MODEL.is_file():
@@ -221,15 +266,23 @@ def _download_embedding(model_id: str) -> None:
     embedding = embedding_path(model_id)
     if embedding.is_file() and _file_size(embedding) > 1_000_000:
         return
+    _ensure_dir()
+    with _lock:
+        _state.update({"status": "downloading", "progress": 45, "message": "正在下载声纹模型…"})
+    fallback_path = str(info.get("fallback_path", "") or "")
+    source_error: Exception | None = None
+    if fallback_path:
+        try:
+            _download_from_sources(fallback_path, embedding, 45, 100)
+            if info.get("needs_metadata"):
+                _ensure_wespeaker_metadata(embedding)
+            return
+        except Exception as exc:
+            source_error = exc
     try:
         _download(info["url"], embedding, 45, 100)
-    except Exception:
-        fallback = info.get("fallback_url")
-        if not fallback:
-            raise
-        with _lock:
-            _state.update({"progress": 45, "message": "官方下载较慢，正在切换镜像…"})
-        _download(fallback, embedding, 45, 100)
+    except Exception as exc:
+        raise RuntimeError(f"声纹模型下载失败：{exc}；镜像：{source_error}") from exc
     if info.get("needs_metadata"):
         _ensure_wespeaker_metadata(embedding)
 
@@ -263,46 +316,8 @@ def start_download(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
 def _download_worker(model_id: str) -> None:
     try:
         _ensure_dir()
-        if not SEGMENTATION_MODEL.is_file():
-            archive = DIARIZATION_DIR / "segmentation.tar.bz2"
-            try:
-                _download(SEGMENTATION_URL, archive, 0, 40)
-                with _lock:
-                    _state.update({"status": "extracting", "progress": 42, "message": "正在解压分割模型…"})
-                _extract(archive, DIARIZATION_DIR)
-            except Exception:
-                with _lock:
-                    _state.update(
-                        {
-                            "progress": 40,
-                            "message": "官方下载较慢，正在切换镜像…",
-                        }
-                    )
-                SEGMENTATION_DIR.mkdir(parents=True, exist_ok=True)
-                _download(SEGMENTATION_FALLBACK_URL, SEGMENTATION_MODEL, 40, 45)
-            finally:
-                archive.unlink(missing_ok=True)
-            if not SEGMENTATION_MODEL.is_file():
-                raise RuntimeError("分割模型解压后没有找到 model.onnx")
-        embedding = embedding_path(model_id)
-        if not (embedding.is_file() and _file_size(embedding) > 1_000_000):
-            info = EMBEDDING_MODELS[model_id]
-            try:
-                _download(info["url"], embedding, 45, 100)
-            except Exception:
-                fallback = info.get("fallback_url")
-                if not fallback:
-                    raise
-                with _lock:
-                    _state.update(
-                        {
-                            "progress": 45,
-                            "message": "官方下载较慢，正在切换镜像…",
-                        }
-                    )
-                _download(fallback, embedding, 45, 100)
-            if info.get("needs_metadata"):
-                _ensure_wespeaker_metadata(embedding)
+        _download_segmentation()
+        _download_embedding(model_id)
         with _lock:
             _state.update(
                 {
@@ -322,7 +337,6 @@ def _download_worker(model_id: str) -> None:
                     "finished_at": time.time(),
                 }
             )
-
 
 def _download(url: str, target: Path, start: int, end: int) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)

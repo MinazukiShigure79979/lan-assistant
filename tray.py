@@ -16,6 +16,8 @@ import time
 import urllib.request
 from pathlib import Path
 
+import log_utils
+
 FROZEN = bool(getattr(sys, "frozen", False))
 ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
 RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", ROOT))
@@ -23,19 +25,20 @@ os.chdir(ROOT)
 DATA = (Path(os.environ.get("LOCALAPPDATA", "")) / "Lan.Assistant" / "data") if FROZEN else (ROOT / "data")
 DATA.mkdir(parents=True, exist_ok=True)
 
-# pythonw.exe has no stdout/stderr; capture all logs for troubleshooting.
-_log_path = DATA / "server.log"
+# pythonw.exe has no stdout/stderr; capture all logs with size-based rotation.
 try:
-    if _log_path.exists() and _log_path.stat().st_size > 5 * 1024 * 1024:
-        _log_path.replace(DATA / "server.log.old")
+    _log = log_utils.RotatingStream(DATA / "server.log", 5 * 1024 * 1024, 3)
 except Exception:
-    pass
-_log = _log_path.open("a", encoding="utf-8", buffering=1)
+    _log = (DATA / "server.log").open("a", encoding="utf-8", buffering=1)
 sys.stdout = _log
 sys.stderr = _log
 
 # If a native library (CUDA, CTranslate2, audio) aborts the process, this
 # writes a Python stack to a separate file instead of leaving a silent exit.
+try:
+    log_utils.rotate_file(DATA / "faulthandler.log", 1 * 1024 * 1024, 2)
+except Exception:
+    pass
 _FAULT_LOG = (DATA / "faulthandler.log").open("a", encoding="utf-8", buffering=1)
 try:
     faulthandler.enable(file=_FAULT_LOG)

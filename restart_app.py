@@ -14,6 +14,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import log_utils
+
 FROZEN = bool(getattr(sys, "frozen", False))
 ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
 CREATE_NEW_PROCESS_GROUP = 0x00000200
@@ -40,7 +42,9 @@ def _log_path() -> Path:
 
 def _log(message: str) -> None:
     try:
-        with _log_path().open("a", encoding="utf-8") as handle:
+        path = _log_path()
+        log_utils.rotate_file(path, 512 * 1024, 2)
+        with path.open("a", encoding="utf-8") as handle:
             handle.write(time.strftime("%Y-%m-%d %H:%M:%S ") + message + "\n")
     except Exception:
         pass

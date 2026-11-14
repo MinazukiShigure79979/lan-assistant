@@ -17,17 +17,17 @@ import urllib.request
 from collections import deque
 from pathlib import Path
 
+import log_utils
+
 FROZEN = bool(getattr(sys, "frozen", False))
 ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
 _DATA = (Path(os.environ.get("LOCALAPPDATA", "")) / "Lan.Assistant" / "data") if FROZEN else (ROOT / "data")
 LOG = _DATA / "overlay.log"
 LOG.parent.mkdir(parents=True, exist_ok=True)
 try:
-    if LOG.exists() and LOG.stat().st_size > 1_000_000:
-        LOG.unlink()
+    _log = log_utils.RotatingStream(LOG, 1_000_000, 2)
 except Exception:
-    pass
-_log = LOG.open("a", encoding="utf-8", buffering=1)
+    _log = LOG.open("a", encoding="utf-8", buffering=1)
 sys.stdout = _log
 sys.stderr = _log
 

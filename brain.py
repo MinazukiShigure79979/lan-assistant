@@ -15,6 +15,7 @@ from typing import Any, Callable, Optional
 
 import config
 import hardware
+import log_utils
 import models
 
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
@@ -214,6 +215,7 @@ class Brain:
             env.update(hardware.ollama_env(self.settings))
             log_path = config.DATA_DIR / "ollama.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_utils.rotate_file(log_path, 5 * 1024 * 1024, 2)
             log = log_path.open("a", encoding="utf-8")
             self._process = subprocess.Popen(
                 [str(exe), "serve"],

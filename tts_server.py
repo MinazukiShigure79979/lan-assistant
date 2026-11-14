@@ -14,6 +14,8 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import log_utils
+
 FROZEN = bool(getattr(sys, "frozen", False))
 ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
 DATA = (Path(os.environ.get("LOCALAPPDATA", "")) / "Lan.Assistant" / "data") if FROZEN else (ROOT / "data")
@@ -23,7 +25,7 @@ CREATE_NO_WINDOW = 0x08000000
 _log = None
 try:
     DATA.mkdir(parents=True, exist_ok=True)
-    _log = (DATA / "tts.log").open("a", encoding="utf-8", buffering=1)
+    _log = log_utils.RotatingStream(DATA / "tts.log", 1_000_000, 2)
     sys.stdout = _log
     sys.stderr = _log
 except Exception:
