@@ -51,10 +51,9 @@ RestartApplications=no
 ChangesAssociations=no
 MinVersion=10.0
 LanguageDetectionMethod=uilanguage
-DefaultLanguage=en
 
 [Languages]
-Name: "chs"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+Name: "chs"; MessagesFile: "ChineseSimplified.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 Name: "ja"; MessagesFile: "compiler:Languages\Japanese.isl"
 Name: "ko"; MessagesFile: "compiler:Languages\Korean.isl"
@@ -74,7 +73,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
-function GetDefaultDir: String;
+function GetDefaultDir(Param: String): String;
 begin
   { Keep the app in its own child directory. }
   if DirExists('D:\') then

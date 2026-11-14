@@ -120,7 +120,8 @@ if ([string]::IsNullOrWhiteSpace($IsccPath)) {
     $candidates = @(
         $env:INNO_SETUP_ISCC,
         "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-        "C:\Program Files\Inno Setup 6\ISCC.exe"
+        "C:\Program Files\Inno Setup 6\ISCC.exe",
+        (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
     ) | Where-Object { $_ -and (Test-Path $_) }
     $IsccPath = $candidates | Select-Object -First 1
 }
