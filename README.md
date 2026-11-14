@@ -43,6 +43,7 @@ Lan.Assistant 是运行在 Windows 电脑上的实时语音助手：既能做通
 - `overlay.log` / `voice-overlay.log`：1 MB × 2 份
 - `tts.log`：1 MB × 2 份
 - `ollama.log`：5 MB × 2 份（Ollama 下次启动时轮转）
+- `restart.log`：512 KB × 2 份
 - `faulthandler.log`：1 MB × 2 份
 - 旧文件使用 `.1`、`.2`、`.3` 后缀
 
