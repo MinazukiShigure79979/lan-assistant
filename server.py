@@ -494,6 +494,7 @@ class App:
         self._turns_lock = threading.RLock()
         self._asr_queue: queue.Queue = queue.Queue()
         self._partial_queue: queue.Queue = queue.Queue(maxsize=2)
+        self._final_pending = threading.Event()
         self._worker_threads: list[threading.Thread] = []
         self.startup_error = ""
         self.voice_history: list[dict[str, Any]] = self._load_voice_history()
@@ -1222,6 +1223,9 @@ class App:
     def _on_segment(self, speaker: str, pcm: Any, meta: dict[str, Any]) -> None:
         if not self.capture_running:
             return
+        if speaker == "other":
+            # The final decode has priority over speculative partials.
+            self._final_pending.set()
         item = {
             "speaker": speaker,
             "pcm": pcm.copy(),
@@ -1232,6 +1236,8 @@ class App:
 
     def _on_partial(self, speaker: str, pcm: Any, meta: dict[str, Any]) -> None:
         if not self.capture_running or not self.settings.get("partial_asr", True):
+            return
+        if speaker == "other" and self._final_pending.is_set():
             return
         # The segmenter increments seq when speech starts; learn it here so the
         # first partial result is not discarded as stale.
@@ -1311,7 +1317,10 @@ class App:
                 continue
             if item is None:
                 break
+            if item.get("speaker") == "other":
+                self._final_pending.set()
             if not self.transcriber.model:
+                self._final_pending.clear()
                 if self.asr_status == "error":
                     self._emit_error("asr", self.transcriber.error or "语音识别模型未就绪")
                 continue
@@ -1331,13 +1340,16 @@ class App:
                         )
                         result["text"] = config.apply_vocabulary(str(result["text"]), entries)
                 if result.get("error"):
+                    self._final_pending.clear()
                     self._emit_error("asr", str(result["error"]))
                     continue
                 text = str(result.get("text", "") or "").strip()
                 if not text:
+                    self._final_pending.clear()
                     continue
                 self._handle_final(item["speaker"], text, item, result)
             except Exception as exc:
+                self._final_pending.clear()
                 # A malformed glossary/settings value or transient decoder
                 # failure must not kill the only ASR consumer thread.
                 self._emit_error("asr", f"识别处理失败：{exc}")
@@ -1353,6 +1365,8 @@ class App:
                 break
             if not self.transcriber.model:
                 continue
+            if self._final_pending.is_set():
+                continue
             speaker = item["speaker"]
             seq = int(item["meta"].get("seq", 0))
             if seq != self.active_seq.get(speaker, 0) or not self.capture_running:
@@ -1365,6 +1379,8 @@ class App:
             )
             text = str(result.get("text", "") or "").strip()
             if not text:
+                continue
+            if self._final_pending.is_set() and speaker == "other":
                 continue
             if seq != self.active_seq.get(speaker, 0) or not self.capture_running:
                 continue
@@ -1409,6 +1425,8 @@ class App:
 
     # ------------------------------------------------------------------ turns
     def _handle_final(self, speaker: str, text: str, item: dict[str, Any], result: dict[str, Any]) -> None:
+        if speaker == "other":
+            self._final_pending.clear()
         text = text.strip()
         if _is_filler_text(text):
             return
@@ -1456,7 +1474,7 @@ class App:
             if self.mode == "translate":
                 with self.lock:
                     self._suggest_gen += 1
-                self._schedule_translation_batch(0.2)
+                self._schedule_translation_batch(0.08)
                 return
             if self.mode == "meeting":
                 if self.settings.get("translate", True):
@@ -2081,6 +2099,7 @@ class App:
             )
         self.engine.start(other, mic, engine_settings)
         self.capture_running = True
+        self._final_pending.clear()
         self.started_at = time.time()
         self._last_final.clear()
         self._open_session()
@@ -2115,6 +2134,7 @@ class App:
                 self._translation_timer = None
         self.engine.stop()
         self.capture_running = False
+        self._final_pending.clear()
         self._invalidate_partial_translation()
         self.levels = {"other": 0.0, "me": 0.0}
         self.partial = {"other": None, "me": None}
@@ -2255,6 +2275,7 @@ $speaker.Dispose()
 
     def clear_session(self) -> None:
         was_running = bool(self.capture_running)
+        self._final_pending.clear()
         with self._turns_lock:
             self.turns = []
             self._turn_seq = 0
@@ -2849,6 +2870,7 @@ $speaker.Dispose()
             pass
         try:
             self.capture_running = False
+            self._final_pending.clear()
             self.engine.stop()
         except Exception:
             pass
