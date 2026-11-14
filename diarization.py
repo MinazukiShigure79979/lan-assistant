@@ -127,6 +127,113 @@ def _sherpa_available() -> bool:
         return False
 
 
+def start_component_download(component_id: str) -> dict[str, Any]:
+    """Download one preset diarization file (used by model management rows)."""
+    component_id = str(component_id or "")
+    if component_id == "diarization-segmentation":
+        kind = "segmentation"
+        model_id = DEFAULT_MODEL
+        target = SEGMENTATION_MODEL
+    elif component_id.startswith("diarization-"):
+        model_id = component_id[len("diarization-"):]
+        if model_id not in EMBEDDING_MODELS:
+            return {"ok": False, "error": "找不到这个声纹模型"}
+        kind = "embedding"
+        target = embedding_path(model_id)
+    else:
+        return {"ok": False, "error": "未知的说话人区分模型"}
+    if target.is_file() and _file_size(target) > 1_000_000:
+        return {"ok": True, "started": False, "message": "模型已经存在"}
+    with _lock:
+        if _state.get("status") in ("downloading", "extracting"):
+            return {"ok": False, "error": "已有说话人区分模型正在下载"}
+        _state.update(
+            {
+                "status": "downloading",
+                "progress": 0,
+                "message": "正在下载单个模型文件…",
+                "model": component_id,
+                "error": "",
+                "started_at": time.time(),
+                "finished_at": 0.0,
+            }
+        )
+    thread = threading.Thread(
+        target=_component_worker,
+        args=(kind, model_id),
+        name="diarization-component-download",
+        daemon=True,
+    )
+    thread.start()
+    return {"ok": True, "started": True, "state": dict(_state)}
+
+
+def _component_worker(kind: str, model_id: str) -> None:
+    try:
+        _ensure_dir()
+        if kind == "segmentation":
+            _download_segmentation()
+        else:
+            _download_embedding(model_id)
+        with _lock:
+            _state.update(
+                {
+                    "status": "ready",
+                    "progress": 100,
+                    "message": "模型文件已就绪",
+                    "finished_at": time.time(),
+                }
+            )
+    except Exception as exc:
+        with _lock:
+            _state.update(
+                {
+                    "status": "error",
+                    "message": "模型文件下载失败",
+                    "error": str(exc)[:500],
+                    "finished_at": time.time(),
+                }
+            )
+
+
+def _download_segmentation() -> None:
+    if SEGMENTATION_MODEL.is_file():
+        return
+    archive = DIARIZATION_DIR / "segmentation.tar.bz2"
+    try:
+        _download(SEGMENTATION_URL, archive, 0, 40)
+        with _lock:
+            _state.update({"status": "extracting", "progress": 42, "message": "正在解压分割模型…"})
+        _extract(archive, DIARIZATION_DIR)
+    except Exception:
+        with _lock:
+            _state.update({"progress": 40, "message": "官方下载较慢，正在切换镜像…"})
+        SEGMENTATION_DIR.mkdir(parents=True, exist_ok=True)
+        _download(SEGMENTATION_FALLBACK_URL, SEGMENTATION_MODEL, 40, 45)
+    finally:
+        archive.unlink(missing_ok=True)
+    if not SEGMENTATION_MODEL.is_file():
+        raise RuntimeError("分割模型解压后没有找到 model.onnx")
+
+
+def _download_embedding(model_id: str) -> None:
+    info = EMBEDDING_MODELS[model_id]
+    embedding = embedding_path(model_id)
+    if embedding.is_file() and _file_size(embedding) > 1_000_000:
+        return
+    try:
+        _download(info["url"], embedding, 45, 100)
+    except Exception:
+        fallback = info.get("fallback_url")
+        if not fallback:
+            raise
+        with _lock:
+            _state.update({"progress": 45, "message": "官方下载较慢，正在切换镜像…"})
+        _download(fallback, embedding, 45, 100)
+    if info.get("needs_metadata"):
+        _ensure_wespeaker_metadata(embedding)
+
+
 def start_download(model_id: str = DEFAULT_MODEL) -> dict[str, Any]:
     model_id = model_id if model_id in EMBEDDING_MODELS else DEFAULT_MODEL
     with _lock:

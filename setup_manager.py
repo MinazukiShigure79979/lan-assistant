@@ -383,6 +383,89 @@ class SetupManager:
         self._set(_progress=0.95, _message="Ollama 已安装。")
         self._publish()
 
+    def download_preset_async(self, kind: str, model_id: str) -> tuple[bool, str]:
+        """Download one preset Whisper/LLM model from the model manager.
+
+        Unlike the first-run flow this never changes the selected model, and it
+        is only available for built-in options (custom files are manual imports).
+        """
+        kind = str(kind or "")
+        model_id = str(model_id or "")
+        with self._lock:
+            if self._busy:
+                return False, "已有模型正在下载，请稍候"
+            if kind == "whisper":
+                whisper_id = model_id[len("whisper-"):] if model_id.startswith("whisper-") else model_id
+                item = next(
+                    (
+                        row
+                        for row in self._whisper
+                        if row["id"] in (model_id, whisper_id) or row["dir"] == model_id
+                    ),
+                    None,
+                )
+            elif kind == "llm":
+                item = next((row for row in self._llm if row["id"] == model_id), None)
+            else:
+                return False, "只支持预设的语音识别或语言模型"
+            if item is None:
+                return False, "找不到这个预设模型"
+            if kind == "whisper":
+                target = config.MODELS_DIR / item["dir"]
+                if (target / "model.bin").exists() and (target / "config.json").exists():
+                    return True, "模型已经存在"
+            else:
+                target = config.MODELS_DIR / "llm" / item["file"]
+                if target.exists() and target.stat().st_size > 100 * 1024 * 1024:
+                    return True, "模型已经存在"
+            self._busy = True
+            self._downloading = True
+            self._error = ""
+            self._stage = "models"
+            self._progress = 0.0
+            self._message = f"正在下载 {item['label']}…"
+            self._downloads = {
+                item["id"]: {
+                    "label": item["label"],
+                    "kind": kind,
+                    "status": "pending",
+                    "progress": 0.0,
+                    "size": item.get("size", ""),
+                }
+            }
+            self._job = threading.Thread(
+                target=self._download_preset_job,
+                args=(kind, dict(item)),
+                name="model-manager-download",
+                daemon=True,
+            )
+            self._job.start()
+        self._publish()
+        return True, "已开始下载"
+
+    def _download_preset_job(self, kind: str, item: dict[str, Any]) -> None:
+        try:
+            self._update_download(item["id"], status="downloading", progress=0.0)
+            self._publish()
+            if kind == "whisper":
+                self._download_whisper(item)
+            else:
+                self._download_llm(item)
+            models.invalidate_cache()
+            self._update_download(item["id"], status="done", progress=1.0)
+            self._set(_message=f"{item['label']} 下载完成")
+        except Exception as exc:
+            with self._lock:
+                self._error = f"模型下载失败：{exc}"
+                self._message = "检查网络后重试；已下载的文件会保留"
+                self._stage = "error"
+                self._update_download(item["id"], status="error")
+        finally:
+            with self._lock:
+                self._downloading = False
+                self._busy = False
+            self._publish()
+
     def download_async(self, whisper_ids: list[str], llm_ids: list[str]) -> bool:
         with self._lock:
             if self._busy:

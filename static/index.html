@@ -7,7 +7,7 @@
   <title>Lan.Assistant</title>
   <link rel="icon" type="image/png" sizes="256x256" href="/static/favicon.png?v=37">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=37">
-  <link rel="stylesheet" href="/static/app.css?v=72">
+  <link rel="stylesheet" href="/static/app.css?v=75">
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -839,7 +839,7 @@
                 <label class="field span-2">
                   <span>文件 / 目录路径</span>
                   <input type="text" id="setCustomModelPath" placeholder="models/llm/xxx.gguf 或 faster-whisper-tiny" autocomplete="off">
-                  <small class="field-note">相对路径按模型类型解析；未放入文件时会显示「未下载」。</small>
+                  <small class="field-note">手动导入前请先把文件放到 models 下；LLM 只接受 .gguf，Whisper 目录必须包含 model.bin 和 config.json。校验不通过不会加入列表。</small>
                 </label>
                 <label class="field span-2">
                   <span>来源 / 备注（可选）</span>
@@ -1099,6 +1099,6 @@
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
   <script src="/static/i18n.js?v=15"></script>
-  <script src="/static/app.js?v=73"></script>
+  <script src="/static/app.js?v=76"></script>
 </body>
 </html>

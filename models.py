@@ -379,7 +379,7 @@ def _resolve_model_path(kind: str, raw: str) -> Path:
     path = Path(str(raw or "").strip())
     if not path.is_absolute():
         if path.parts and path.parts[0].lower() == "models":
-            path = config.ROOT / path
+            path = config.MODELS_DIR.joinpath(*path.parts[1:])
         else:
             path = (config.MODELS_DIR / "llm" / path) if kind == "llm" else (config.MODELS_DIR / path)
     return path.resolve()
@@ -521,8 +521,18 @@ def add_custom(kind: str, label: str, path: str, source: str = "", size_hint: st
     resolved = _resolve_model_path(kind, raw_path)
     if not _is_under_models(resolved):
         raise ValueError("模型路径必须位于项目 models 目录内")
-    if kind == "llm" and resolved.suffix.lower() != ".gguf":
-        resolved = resolved.with_suffix(".gguf")
+    if kind == "llm":
+        if resolved.suffix.lower() != ".gguf":
+            raise ValueError("语言模型必须是 .gguf 文件")
+        if not resolved.is_file():
+            raise ValueError("找不到这个 .gguf 文件，请先把模型复制到 models/llm")
+        if resolved.stat().st_size < 100 * 1024 * 1024:
+            raise ValueError("这个 .gguf 文件太小，不像可部署的完整语言模型")
+    else:
+        if not resolved.is_dir():
+            raise ValueError("语音识别模型必须是一个 faster-whisper 目录")
+        if not (resolved / "model.bin").is_file() or not (resolved / "config.json").is_file():
+            raise ValueError("Whisper 目录必须包含 model.bin 和 config.json")
     custom = _load_custom()
     if any(str(_resolve_model_path(row["kind"], row["path"])) == str(resolved) for row in custom):
         raise ValueError("这个模型路径已经存在")

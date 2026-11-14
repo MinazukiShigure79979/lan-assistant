@@ -3367,6 +3367,16 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._error(f"添加模型失败：{exc}", 400)
             return
+        if path == "/api/models/download":
+            ok, message = self.app.setup.download_preset_async(
+                str(body.get("kind", "") or ""),
+                str(body.get("id", "") or ""),
+            )
+            if not ok:
+                self._error(message, 409)
+                return
+            self._json({"ok": True, "message": message})
+            return
         if path == "/api/model-management/delete":
             try:
                 deleted_id = str(body.get("id", "") or "")
@@ -3693,6 +3703,15 @@ class Handler(BaseHTTPRequestHandler):
                     "diarization": diarization.public_state(model_id),
                 }
             )
+            return
+        if path == "/api/diarization/download-component":
+            result = diarization.start_component_download(
+                str(body.get("component", "") or "")
+            )
+            if not result.get("ok"):
+                self._error(str(result.get("error", "下载失败")), 409)
+                return
+            self._json(result)
             return
         if path == "/api/overlay":
             action = str(body.get("action", "toggle") or "toggle")

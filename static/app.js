@@ -2159,46 +2159,89 @@
       );
       row.appendChild(status);
       row.appendChild(make("span", "model-row-size", item.downloaded ? item.size || "" : "—"));
-      const del = make(
-        "button",
-        "btn btn-tiny",
-        item.custom && !item.downloaded ? "移除" : "删除"
-      );
-      del.type = "button";
-      del.disabled = !item.downloaded && !item.custom;
-      del.addEventListener("click", async () => {
-        if (!window.confirm(
-          item.custom && !item.downloaded
-            ? `从列表移除自定义模型「${item.label || item.name}」？`
-            : `删除本地模型「${item.label || item.name}」？\n这会删除磁盘文件，不能撤销。`
-        )) return;
-        del.disabled = true;
-        del.textContent = "删除中…";
-        try {
-          const res = await api("/api/model-management/delete", {
-            method: "POST",
-            body: { id: item.id },
-          });
-          state.modelManagement = res.management || null;
-          if (res.settings) state.settings = res.settings;
-          state.models = await api("/api/models?refresh=1");
-          renderModelChoices(state.settings);
-          renderModelManagement();
-          renderHardware();
-          if (item.kind === "diarization") {
-            await refreshDiarization(
-              (els.setDiarizationModel && els.setDiarizationModel.value) || "",
-              false
-            );
+      if (item.custom) {
+        row.appendChild(make("span", "model-row-note", "手动导入"));
+      } else if (!item.downloaded) {
+        const download = make("button", "btn btn-tiny", "下载");
+        download.type = "button";
+        download.addEventListener("click", async () => {
+          download.disabled = true;
+          download.textContent = "下载中…";
+          try {
+            if (item.kind === "diarization") {
+              await api("/api/diarization/download-component", {
+                method: "POST",
+                body: { component: item.id },
+              });
+            } else {
+              await api("/api/models/download", {
+                method: "POST",
+                body: { kind: item.kind, id: item.id },
+              });
+            }
+            const poll = async (tries = 0) => {
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              try {
+                state.modelManagement = await api("/api/model-management");
+                renderModelManagement();
+                const rowNow = (state.modelManagement.models || []).find((rowItem) => rowItem.id === item.id);
+                if (rowNow && rowNow.downloaded) {
+                  state.models = await api("/api/models?refresh=1");
+                  renderModelChoices(state.settings);
+                  if (item.kind === "diarization") {
+                    await refreshDiarization(
+                      (els.setDiarizationModel && els.setDiarizationModel.value) || "",
+                      false
+                    );
+                  }
+                  toast(`${item.label || item.name} 已下载完成`, "good");
+                } else if (tries < 800) {
+                  setTimeout(() => poll(tries + 1), 1500);
+                }
+              } catch (err) {
+                toast(`下载状态刷新失败：${err.message}`, "bad");
+              }
+            };
+            setTimeout(() => poll(), 800);
+          } catch (err) {
+            toast(`下载失败：${err.message}`, "bad");
+            renderModelManagement();
           }
-          toast("模型已删除", "good");
-        } catch (err) {
-          toast(err.message, "bad");
-          del.disabled = false;
-          del.textContent = "删除";
-        }
-      });
-      row.appendChild(del);
+        });
+        row.appendChild(download);
+      } else {
+        const del = make("button", "btn btn-tiny", "删除");
+        del.type = "button";
+        del.addEventListener("click", async () => {
+          if (!window.confirm(`删除本地模型「${item.label || item.name}」？\n这会删除磁盘文件，不能撤销。`)) return;
+          del.disabled = true;
+          del.textContent = "删除中…";
+          try {
+            const res = await api("/api/model-management/delete", {
+              method: "POST",
+              body: { id: item.id },
+            });
+            state.modelManagement = res.management || null;
+            if (res.settings) state.settings = res.settings;
+            state.models = await api("/api/models?refresh=1");
+            renderModelChoices(state.settings);
+            renderModelManagement();
+            renderHardware();
+            if (item.kind === "diarization") {
+              await refreshDiarization(
+                (els.setDiarizationModel && els.setDiarizationModel.value) || "",
+                false
+              );
+            }
+            toast("模型已删除", "good");
+          } catch (err) {
+            toast(err.message, "bad");
+            del.disabled = false;
+            del.textContent = "删除";
+          }
+        });
+        row.appendChild(del);
+      }
       els.modelManagerList.appendChild(row);
     }
   }
