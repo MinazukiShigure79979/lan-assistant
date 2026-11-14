@@ -9,6 +9,16 @@
   "use strict";
 
   const EN = {
+    "字幕工具": "Subtitle tools",
+    "校对字幕": "Proofread subtitles",
+    "逐条修改本次听读的原文和译文；保存后页面、悬浮字幕和导出文件都会使用修改后的版本。": "Edit each source line and translation; saved changes update the page, floating subtitles, and exported files.",
+    "导出字幕": "Export subtitles",
+    "导出本次听读的双语 SRT 字幕文件，包含原文和译文；适合播放器或后续剪辑使用。": "Export this listening session as a bilingual SRT file with source and translation for players or editing.",
+    "导出 SRT 字幕": "Export SRT subtitles",
+    "顶部「导出听读 JSON」": "Top “Export listening JSON”",
+    "导出本次听读的原始 JSON 记录：字幕原文、译文、时间戳和识别信息；它不是 SRT 字幕文件。": "Export this listening session as raw JSON with source, translation, timestamps, and recognition details; this is not an SRT file.",
+    "导出记录": "Export record",
+    "导出 JSON": "Export JSON",
     "运行环境": "Runtime",
     "选择本地模型或 API。这里同时影响回答建议和字幕翻译，切换后所有工作区共用。": "Choose a local model or API. This affects both answer suggestions and subtitle translation across all workspaces.",
     "选择本机运行的模型版本；模型管理可以查看、加入或删除模型目录。": "Choose the model version running on this PC; model management lets you inspect, add, or remove model directories.",

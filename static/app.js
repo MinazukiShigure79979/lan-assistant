@@ -650,6 +650,30 @@
     els.btnProfile.classList.toggle("hidden", !call);
     els.btnExport.classList.toggle("hidden", placeholder);
     els.btnStart.classList.toggle("hidden", placeholder);
+    const exportCopy = {
+      call: {
+        label: "导出通话 JSON",
+        title: "导出本次通话记录（JSON：双方原文、译文、AI 建议；不含通话总结 Markdown）",
+      },
+      translate: {
+        label: "导出听读 JSON",
+        title: "导出本次听读记录（JSON：字幕原文、译文、时间；不含 SRT）",
+      },
+      meeting: {
+        label: "导出会议 JSON",
+        title: "导出本次会议记录（JSON：转录、译文、会议纪要）",
+      },
+      voice: {
+        label: "导出 JSON",
+        title: "语音输入不使用此导出",
+      },
+    };
+    if (els.btnExport) {
+      const copy = exportCopy[mode] || { label: "导出 JSON", title: "导出当前会话的文字记录（JSON）" };
+      els.btnExport.textContent = copy.label;
+      els.btnExport.title = copy.title;
+      els.btnExport.setAttribute("aria-label", copy.title);
+    }
     if (!translate && els.subtitleDialog.open) els.subtitleDialog.close();
     if (translate) {
       els.btnOverlay.textContent = state.overlayRunning ? "关闭悬浮字幕" : "悬浮字幕";
@@ -2778,7 +2802,13 @@
       document.body.appendChild(a);
       a.click();
       a.remove();
-      toast("正在导出文字记录");
+      const messages = {
+        call: "正在导出通话记录 JSON（原文/译文/AI 建议）",
+        translate: "正在导出听读记录 JSON；SRT 请用右侧「导出 SRT 字幕」",
+        meeting: "正在导出会议记录 JSON（转录/译文/纪要）",
+        voice: "语音输入记录不支持此导出",
+      };
+      toast(messages[state.mode] || "正在导出文字记录（JSON）");
     });
 
     document.addEventListener("keydown", (event) => {

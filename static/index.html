@@ -7,7 +7,7 @@
   <title>Lan.Assistant</title>
   <link rel="icon" type="image/png" sizes="256x256" href="/static/favicon.png?v=37">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=37">
-  <link rel="stylesheet" href="/static/app.css?v=65">
+  <link rel="stylesheet" href="/static/app.css?v=66">
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -66,10 +66,8 @@
 
       <div class="top-actions">
         <button class="btn btn-ghost hidden" id="btnOverlay" title="显示/隐藏悬浮字幕">悬浮字幕</button>
-        <button class="btn btn-ghost hidden" id="btnProofread" title="校对本次字幕原文和翻译">校对字幕</button>
-        <button class="btn btn-ghost hidden" id="btnExportSubtitles" title="导出 SRT 字幕">导出字幕</button>
         <button class="btn btn-ghost hidden" id="btnCallSummary" title="查看本次通话总结">通话总结</button>
-        <button class="btn btn-ghost" id="btnExport" title="导出本次对话记录">导出</button>
+        <button class="btn btn-ghost" id="btnExport" title="导出本次通话记录（JSON）">导出 JSON</button>
         <button class="btn btn-ghost" id="btnSettings" title="音频设备与识别设置">设置</button>
         <button class="btn btn-ghost" id="btnProfile" title="编辑你的背景预设">我的预设</button>
         <button class="btn btn-primary" id="btnStart" title="开始 / 结束通话">
@@ -146,6 +144,31 @@
         </footer>
       </section>
 
+      <aside class="panel subtitle-tools-panel" id="subtitleToolsPanel">
+        <header class="panel-head">
+          <div>
+            <div class="section-kicker">SUBTITLE TOOLS</div>
+            <h2>字幕工具</h2>
+          </div>
+        </header>
+        <div class="subtitle-tools-body">
+          <section class="subtitle-tool-card">
+            <h3>校对字幕</h3>
+            <p>逐条修改本次听读的原文和译文；保存后页面、悬浮字幕和导出文件都会使用修改后的版本。</p>
+            <button class="btn btn-ghost" id="btnProofread" title="校对本次字幕原文和翻译">校对字幕</button>
+          </section>
+          <section class="subtitle-tool-card">
+            <h3>导出字幕</h3>
+            <p>导出本次听读的双语 SRT 字幕文件，包含原文和译文；适合播放器或后续剪辑使用。</p>
+            <button class="btn btn-ghost" id="btnExportSubtitles" title="导出双语 SRT 字幕">导出 SRT 字幕</button>
+          </section>
+          <section class="subtitle-tool-card tool-note">
+            <h3>顶部「导出听读 JSON」</h3>
+            <p>导出本次听读的原始 JSON 记录：字幕原文、译文、时间戳和识别信息；它不是 SRT 字幕文件。</p>
+          </section>
+        </div>
+      </aside>
+
       <aside class="panel coach-panel">
         <header class="panel-head">
           <div>
@@ -212,7 +235,7 @@
         <footer class="coach-foot">
           <span id="meetingNotesMeta">等待会议内容…</span>
           <div class="foot-actions">
-            <button class="link subtle" id="btnExportNotes">导出 Markdown</button>
+            <button class="link subtle" id="btnExportNotes" title="导出会议纪要 Markdown：摘要、讨论、决定和待办">导出 Markdown</button>
           </div>
         </footer>
       </aside>
@@ -1043,7 +1066,7 @@
       <footer class="modal-foot">
         <span class="autosave-note" id="callSummaryMeta">等待通话内容…</span>
         <button type="button" class="btn btn-ghost" id="btnCallSummaryRefresh">重新生成</button>
-        <button type="button" class="btn btn-ghost" id="btnExportCallSummary">导出 Markdown</button>
+        <button type="button" class="btn btn-ghost" id="btnExportCallSummary" title="导出通话总结 Markdown：问答复盘、改进表达和自我介绍反馈">导出 Markdown</button>
         <button type="button" class="btn btn-primary" id="btnCloseCallSummaryFoot">关闭</button>
       </footer>
     </div>
@@ -1051,7 +1074,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
-  <script src="/static/i18n.js?v=6"></script>
-  <script src="/static/app.js?v=66"></script>
+  <script src="/static/i18n.js?v=8"></script>
+  <script src="/static/app.js?v=68"></script>
 </body>
 </html>
