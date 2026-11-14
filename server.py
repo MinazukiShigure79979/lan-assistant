@@ -615,6 +615,8 @@ class App:
         threading.Thread(target=self.apply_startup_setting, name="startup-shortcut", daemon=True).start()
         if self.settings.get("voice_overlay_enabled", True):
             self.start_voice_overlay()
+        if self.mode == "translate" and self.settings.get("overlay_enabled", True):
+            self.start_overlay()
 
     def apply_startup_setting(self) -> tuple[bool, str]:
         enabled = bool(self.settings.get("start_with_windows", False))
@@ -3314,7 +3316,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.app.brain.set_settings(self.app.settings)
                 if "overlay_enabled" in patch:
                     if patch["overlay_enabled"]:
-                        if self.app.mode == "translate" and self.app.capture_running:
+                        if self.app.mode == "translate":
                             self.app.start_overlay()
                     else:
                         self.app.stop_overlay()
@@ -3365,6 +3367,16 @@ class Handler(BaseHTTPRequestHandler):
                 merged["ui_language"] = requested_ui_language
                 self.app.settings = config.save_settings(merged)
                 self.app.brain.set_settings(self.app.settings)
+                if self.app.mode == "translate":
+                    overlay_was_running = self.app.overlay_running()
+                    if self.app.settings.get("overlay_enabled", True):
+                        self.app.start_overlay()
+                    else:
+                        self.app.stop_overlay()
+                    if overlay_was_running != self.app.overlay_running():
+                        self.app.bus.publish(
+                            {"type": "overlay", "data": {"running": self.app.overlay_running()}}
+                        )
                 if not old_auto_hardware and self.app.settings.get("hardware_auto_configure", True):
                     updated, profile, changed = hardware.apply_to_settings(self.app.settings, force=True)
                     self.app.hardware = profile
@@ -3445,6 +3457,9 @@ class Handler(BaseHTTPRequestHandler):
             self.app._cancel_continuation(clear=True)
             if mode != "translate":
                 self.app.stop_overlay()
+            elif self.app.settings.get("overlay_enabled", True):
+                self.app.start_overlay()
+                self.app.bus.publish({"type": "overlay", "data": {"running": self.app.overlay_running()}})
             self.app.settings = config.save_settings({**self.app.settings, "app_mode": mode})
             self.app.brain.set_settings(self.app.settings)
             self.app.clear_session()
