@@ -497,19 +497,25 @@ class Brain:
             raise BrainError("API 返回内容为空")
         return content
 
-    def _subtitle_context(self) -> str:
+    def _subtitle_context(self, target: str = "zh") -> str:
         if str(self.settings.get("app_mode", "call")) != "translate":
             return ""
+        language = {
+            "zh": "Chinese",
+            "en": "English",
+            "ja": "Japanese",
+            "ko": "Korean",
+        }.get(str(target or "zh"), "Chinese")
         media_type = str(self.settings.get("media_type", "series") or "series")
         type_prompts = {
-            "series": "TV series dialogue: conversational, consistent character names, natural spoken Chinese.",
-            "movie": "Film dialogue: concise and cinematic, natural spoken Chinese.",
-            "anime": "Anime dialogue: keep character names and honorifics consistent, natural spoken Chinese.",
+            "series": f"TV series dialogue: conversational, consistent character names, natural spoken {language}.",
+            "movie": f"Film dialogue: concise and cinematic, natural spoken {language}.",
+            "anime": f"Anime dialogue: keep character names and honorifics consistent, natural spoken {language}.",
             "documentary": "Documentary narration: accurate, formal, consistent terminology.",
             "other": "Spoken dialogue: natural, concise, consistent names.",
         }
         style_prompts = {
-            "natural": "Prefer natural colloquial Chinese over literal wording.",
+            "natural": f"Prefer natural colloquial {language} over literal wording.",
             "literal": "Stay close to the original wording while remaining readable.",
             "terminology": "Keep names and technical terms consistent; do not translate established terms loosely.",
         }
@@ -523,14 +529,23 @@ class Brain:
             f"- Style: {type_prompts.get(media_type, type_prompts['other'])} {style_prompts.get(style, style_prompts['natural'])}",
         ]
         if context:
-            parts.append(f"- Setting, characters, terminology, user preferences: {context[:1800]}")
+            parts.append(
+                f"- Setting, characters, terminology, user preferences (reference only; express names and "
+                f"terms in {language}): {context[:1800]}"
+            )
         glossary = config.parse_glossary(context)
         if glossary:
             pairs = "; ".join(f"{src} -> {dst}" for src, dst in list(glossary.items())[:40])
-            parts.append(f"- GLOSSARY (must follow): {pairs}")
+            if target == "zh":
+                parts.append(f"- GLOSSARY (must follow): {pairs}")
+            else:
+                parts.append(
+                    f"- GLOSSARY (source concepts; render the meaning in {language}; do not copy Chinese "
+                    f"glossary values literally unless they are proper names): {pairs}"
+                )
         parts.append("- Translate for on-screen subtitles: keep each line short and speakable; preserve the genre and tone.")
         parts.append(
-            "- If a source name or term resembles a name/term in the context, use its established Chinese name/translation; "
+            f"- If a source name or term resembles a name/term in the context, use its established {language} name/translation; "
             "never reinterpret a proper noun as an unrelated common noun."
         )
         return "\n".join(parts)
@@ -549,16 +564,16 @@ class Brain:
         target_label = labels.get(target, labels["zh"])
         schema = {
             "type": "object",
-            "properties": {"zh": {"type": "string"}},
-            "required": ["zh"],
+            "properties": {"translation": {"type": "string"}},
+            "required": ["translation"],
         }
-        context_parts = [self._subtitle_context(), dialogue_context]
+        context_parts = [self._subtitle_context(target), dialogue_context]
         context = "\n\n".join(part for part in context_parts if part)
         system = (
             f"You are a professional interpreter. Translate the utterance inside <text> into {target_label}. "
             "The source may be English, Japanese, Korean, Chinese or another language. "
             "Preserve the tone and implied meaning. Do not explain, comment, continue the conversation, "
-            "or add anything else. Return only JSON: {\"zh\":\"...\"}"
+            "or add anything else. Return only JSON: {\"translation\":\"...\"}"
         )
         if dialogue_context:
             system += (
@@ -579,9 +594,9 @@ class Brain:
             format_schema=schema,
         )
         obj = _json_object(content)
-        zh = _clean_translation(str(obj.get("zh", "") or ""))
-        if zh:
-            return zh
+        translated = _clean_translation(str(obj.get("translation", "") or obj.get("zh", "") or ""))
+        if translated:
+            return translated
         # A very small model sometimes adds a fake assistant turn.  One plain
         # retry with a minimal prompt is more reliable than showing garbage.
         try:
@@ -622,23 +637,23 @@ class Brain:
         schema = {
             "type": "object",
             "properties": {
-                "zh": {
+                "translations": {
                     "type": "array",
                     "minItems": len(cleaned),
                     "maxItems": len(cleaned),
                     "items": {"type": "string"},
                 }
             },
-            "required": ["zh"],
+            "required": ["translations"],
         }
         context = "\n\n".join(
-            part for part in (self._subtitle_context(), dialogue_context) if part
+            part for part in (self._subtitle_context(target), dialogue_context) if part
         )
         system = (
             f"Translate each numbered utterance inside <text> into {target_label}. "
             "The source may be English, Japanese, Korean, Chinese or another language. Keep the same order. "
             "Each result must contain only the translation, with no number, no explanation, and no added "
-            f'conversation. Return strict JSON: {{"zh":["..."]}} with exactly {len(cleaned)} strings.'
+            f'conversation. Return strict JSON: {{"translations":["..."]}} with exactly {len(cleaned)} strings.'
         )
         if dialogue_context:
             system += (
@@ -663,7 +678,9 @@ class Brain:
             format_schema=schema,
         )
         obj = _json_object(content)
-        rows = obj.get("zh", [])
+        rows = obj.get("translations", [])
+        if not isinstance(rows, list):
+            rows = obj.get("zh", [])
         if not isinstance(rows, list):
             rows = []
         result = [_clean_translation(str(x or "")) for x in rows[: len(cleaned)]]
