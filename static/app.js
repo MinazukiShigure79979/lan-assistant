@@ -229,6 +229,8 @@
     setOverlayEnabled: $("#setOverlayEnabled"),
   };
 
+  const APP_WINDOW_TITLE_MARKER = "\u2063";
+
   // ------------------------------------------------------------------ helpers
   function fmtClock(ts) {
     const d = new Date(ts * 1000);
@@ -711,6 +713,9 @@
     if (translate) {
       els.btnOverlay.textContent = state.overlayRunning ? "关闭悬浮字幕" : "悬浮字幕";
     }
+    // Invisible marker lets the tray distinguish this app window from another
+    // browser tab whose title also happens to contain "Lan.Assistant".
+    document.title = document.title.replace(/\u2063/g, "") + APP_WINDOW_TITLE_MARKER;
   }
 
   function updateGlobalModelLabel() {

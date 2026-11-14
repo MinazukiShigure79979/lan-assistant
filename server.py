@@ -55,6 +55,7 @@ from voice_input import (
 APP_NAME = "Lan.Assistant"
 APP_VERSION = version.VERSION
 APP_DISPLAY_VERSION = version.DISPLAY_VERSION
+APP_WINDOW_TITLE_MARKER = "\u2063"
 STATIC_DIR = config.RESOURCE_DIR / "static"
 DEFAULT_PORT = 8765
 
@@ -3924,6 +3925,8 @@ def _focus_existing_ui() -> bool:
             buffer = ctypes.create_unicode_buffer(length + 2)
             user32.GetWindowTextW(hwnd, buffer, length + 2)
             title = buffer.value.strip()
+            if APP_WINDOW_TITLE_MARKER not in title:
+                return True
             if "lan.assistant" not in title.lower():
                 return True
             klass = ctypes.create_unicode_buffer(128)
