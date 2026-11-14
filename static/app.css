@@ -143,7 +143,7 @@ body {
   font-size: 8px;
   font-style: normal;
 }
-.rail-bottom { margin-top: auto; }
+.rail-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
 .rail-settings {
   appearance: none;
   width: 100%;
@@ -161,6 +161,15 @@ body {
 }
 .rail-settings:hover { color: var(--text); border-color: var(--line-strong); }
 .rail-settings svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.about-card { width: min(560px, calc(100vw - 40px)); }
+.about-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.about-brand img { width: 46px; height: 46px; border-radius: 12px; }
+.about-brand b { display: block; font-size: 16px; }
+.about-brand span { display: block; margin-top: 3px; color: var(--faint); font-family: var(--mono); font-size: 10px; }
+.about-grid { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.025); }
+.about-grid dt { color: var(--faint); font-size: 10px; }
+.about-grid dd { margin: 0; color: var(--muted); font-size: 10.5px; line-height: 1.55; }
+.about-note { margin: 13px 0 0; color: var(--faint); font-size: 10px; line-height: 1.65; }
 
 .feature-placeholder {
   flex: 1 1 auto;

@@ -7,7 +7,7 @@
   <title>Lan.Assistant</title>
   <link rel="icon" type="image/png" sizes="256x256" href="/static/favicon.png?v=37">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=37">
-  <link rel="stylesheet" href="/static/app.css?v=76">
+  <link rel="stylesheet" href="/static/app.css?v=77">
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -41,6 +41,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.09A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.09A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.04V3h4v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06L19.8 7l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.96 10H21v4h-.09A1.7 1.7 0 0 0 19.4 15z"/></svg>
           <span>设置</span>
         </button>
+        <button type="button" class="rail-settings" id="btnRailAbout">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>
+          <span>关于</span>
+        </button>
       </div>
     </nav>
 
@@ -68,7 +72,6 @@
         <button class="btn btn-ghost hidden" id="btnOverlay" title="显示/隐藏悬浮字幕">悬浮字幕</button>
         <button class="btn btn-ghost hidden" id="btnCallSummary" title="查看本次通话总结">通话总结</button>
         <button class="btn btn-ghost" id="btnExport" title="导出本次通话记录（JSON）">导出 JSON</button>
-        <button class="btn btn-ghost" id="btnSettings" title="音频设备与识别设置">设置</button>
         <button class="btn btn-ghost" id="btnProfile" title="编辑你的背景预设">我的预设</button>
         <button class="btn btn-primary" id="btnStart" title="开始 / 结束通话">
           <span class="btn-record-dot"></span><span id="btnStartLabel">开始通话</span>
@@ -815,6 +818,43 @@
 
         <div class="settings-section" data-settings-tab="model">
           <div class="settings-block">
+            <div class="settings-title">
+              <div>
+                <h3>模型下载源</h3>
+                <p class="settings-block-desc">Whisper 和 GGUF 模型从所选 Hugging Face 镜像下载；切换源不会移动或删除已经下载的模型。</p>
+              </div>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>当前下载源</span>
+                <select id="setModelDownloadSource"></select>
+                <small class="field-note" id="modelDownloadSourceHint"></small>
+              </label>
+            </div>
+            <details class="model-add">
+              <summary>添加下载源</summary>
+              <div class="form-grid compact">
+                <label class="field">
+                  <span>名称</span>
+                  <input type="text" id="setDownloadSourceName" maxlength="80" placeholder="例如：公司镜像" autocomplete="off">
+                </label>
+                <label class="field">
+                  <span>地址</span>
+                  <input type="text" id="setDownloadSourceUrl" maxlength="500" placeholder="https://hf-mirror.com" autocomplete="off">
+                </label>
+              </div>
+              <div class="diarization-actions">
+                <button type="button" class="btn btn-tiny" id="btnAddDownloadSource">添加并选用</button>
+                <button type="button" class="btn btn-tiny" id="btnRemoveDownloadSource">删除当前自定义源</button>
+              </div>
+              <small class="field-note">只接受 http/https 地址；添加后记得点底部「保存设置」。内置源不能删除。</small>
+            </details>
+            <div class="device-hint">说话人区分模型当前仍从官方 GitHub / HF 备用地址下载，不受这里切换影响。</div>
+          </div>
+        </div>
+
+        <div class="settings-section" data-settings-tab="model">
+          <div class="settings-block">
           <div class="model-manager">
             <div class="settings-title">
               <div>
@@ -1144,6 +1184,41 @@
     </div>
   </dialog>
 
+  <!-- About -->
+  <dialog class="modal" id="aboutDialog">
+    <div class="modal-card about-card">
+      <header class="modal-head">
+        <div>
+          <div class="section-kicker">ABOUT</div>
+          <h2>Lan.Assistant</h2>
+          <p>本地优先的实时通话与听读助手。音频不上传，文字和设置只保存在本机。</p>
+        </div>
+        <button type="button" class="icon-btn" id="btnCloseAbout" aria-label="关闭">✕</button>
+      </header>
+      <div class="modal-body">
+        <div class="about-brand">
+          <img src="/static/logo.png?v=37" alt="">
+          <div>
+            <b>Lan.Assistant</b>
+            <span id="aboutVersion">v1.0</span>
+          </div>
+        </div>
+        <dl class="about-grid">
+          <dt>运行方式</dt><dd>本机 127.0.0.1:8765 · 托盘常驻</dd>
+          <dt>语音识别</dt><dd>faster-whisper large-v3-turbo（CUDA / CPU 自动回退）</dd>
+          <dt>语言模型</dt><dd>本地 Qwen 或 DeepSeek / OpenAI 兼容 API</dd>
+          <dt>数据位置</dt><dd>源码：项目 data；安装版：%LOCALAPPDATA%\Lan.Assistant</dd>
+          <dt>开源组件</dt><dd>faster-whisper（MIT）· Qwen（Apache-2.0）· pyannote（MIT）· WeSpeaker（CC-BY-4.0）</dd>
+        </dl>
+        <p class="about-note">不包含遥测，不会自动上传转录内容。模型下载、API 调用和更新由你主动触发。</p>
+      </div>
+      <footer class="modal-foot">
+        <span class="autosave-note">Lan.Assistant · Built for local use</span>
+        <button type="button" class="btn btn-primary" id="btnCloseAboutFoot">关闭</button>
+      </footer>
+    </div>
+  </dialog>
+
   <!-- Subtitle editor -->
   <dialog class="modal" id="subtitleDialog">
     <div class="modal-card subtitle-editor-card">
@@ -1186,7 +1261,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
-  <script src="/static/i18n.js?v=19"></script>
-  <script src="/static/app.js?v=83"></script>
+  <script src="/static/i18n.js?v=20"></script>
+  <script src="/static/app.js?v=84"></script>
 </body>
 </html>

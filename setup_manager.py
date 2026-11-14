@@ -597,11 +597,33 @@ class SetupManager:
         if not target.exists() or target.stat().st_size < 100 * 1024 * 1024:
             raise RuntimeError(f"{item['label']} 下载不完整")
 
+    def _hf_endpoints(self) -> list[str]:
+        """Selected download source first, then built-in mirrors as fallbacks."""
+        settings = getattr(self.app, "settings", {}) or {}
+        sources = settings.get("model_download_sources")
+        if not isinstance(sources, list):
+            sources = []
+        selected_id = str(settings.get("model_download_source", "hf-mirror") or "hf-mirror")
+        selected = next(
+            (item for item in sources if isinstance(item, dict) and str(item.get("id")) == selected_id),
+            None,
+        )
+        endpoints: list[str] = []
+        for value in (
+            (selected or {}).get("url"),
+            HF_ENDPOINT,
+            "https://huggingface.co",
+        ):
+            url = str(value or "").strip().rstrip("/")
+            if url and url not in endpoints:
+                endpoints.append(url)
+        return endpoints
+
     def _hf_snapshot(self, repo: str, target: Path) -> None:
         from huggingface_hub import snapshot_download
 
         last_error: Optional[Exception] = None
-        for endpoint in (HF_ENDPOINT, "https://huggingface.co"):
+        for endpoint in self._hf_endpoints():
             try:
                 snapshot_download(
                     repo_id=repo,
@@ -619,7 +641,7 @@ class SetupManager:
         from huggingface_hub import hf_hub_download
 
         last_error: Optional[Exception] = None
-        for endpoint in (HF_ENDPOINT, "https://huggingface.co"):
+        for endpoint in self._hf_endpoints():
             try:
                 hf_hub_download(
                     repo_id=repo,

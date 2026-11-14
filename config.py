@@ -170,8 +170,22 @@ DEFAULT_PROFILE: dict[str, Any] = {
     "key_facts": "",
 }
 
-DEFAULT_SETTINGS: dict[str, Any] = {
-    "other_device": None,
+MODEL_DOWNLOAD_SOURCES: list[dict[str, Any]] = [
+    {
+        "id": "hf-mirror",
+        "name": "HF-Mirror（默认）",
+        "url": "https://hf-mirror.com",
+        "builtin": True,
+    },
+    {
+        "id": "huggingface",
+        "name": "Hugging Face 官方",
+        "url": "https://huggingface.co",
+        "builtin": True,
+    },
+]
+
+DEFAULT_SETTINGS: dict[str, Any] = {    "other_device": None,
     "mic_device": None,
     "mic_enabled": True,
     "asr_device": "auto",
@@ -189,6 +203,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "max_segment_s": 20,
     "mic_gain": 1.0,
     "llm_model": "qwen3.5-copilot",
+    "model_download_source": "hf-mirror",
+    "model_download_sources": [dict(item) for item in MODEL_DOWNLOAD_SOURCES],
     "local_disable_thinking": True,
     "llm_base_url": "http://127.0.0.1:11434",
     "llm_provider": "local",
@@ -398,6 +414,29 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
         clean["local_gpu_mode"] = str(clean.get("local_gpu_mode", "auto") or "auto")
         if clean["local_gpu_mode"] not in ("auto", "nvidia", "amd_vulkan", "intel_vulkan", "cpu"):
             clean["local_gpu_mode"] = "auto"
+        raw_sources = clean.get("model_download_sources")
+        custom_sources: list[dict[str, Any]] = []
+        seen_ids = {str(item["id"]) for item in MODEL_DOWNLOAD_SOURCES}
+        if isinstance(raw_sources, list):
+            for item in raw_sources[:20]:
+                if not isinstance(item, dict):
+                    continue
+                source_id = str(item.get("id", "") or "").strip()
+                if source_id in seen_ids or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", source_id):
+                    continue
+                name = str(item.get("name", "") or "").strip()[:80]
+                url = str(item.get("url", "") or "").strip().rstrip("/")[:500]
+                if not name or not re.match(r"^https?://", url, re.IGNORECASE):
+                    continue
+                seen_ids.add(source_id)
+                custom_sources.append({"id": source_id, "name": name, "url": url, "builtin": False})
+        clean["model_download_sources"] = [
+            dict(item) for item in MODEL_DOWNLOAD_SOURCES
+        ] + custom_sources
+        source_id = str(clean.get("model_download_source", "hf-mirror") or "hf-mirror")
+        if source_id not in {item["id"] for item in clean["model_download_sources"]}:
+            source_id = "hf-mirror"
+        clean["model_download_source"] = source_id
         clean["asr_language"] = str(clean.get("asr_language", "en") or "en")
         if clean["asr_language"] not in ("en", "ja", "ko", "auto"):
             clean["asr_language"] = "en"

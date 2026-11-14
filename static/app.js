@@ -152,6 +152,9 @@
     placeholderText: $("#placeholderText"),
     placeholderKicker: $("#placeholderKicker"),
     btnRailSettings: $("#btnRailSettings"),
+    btnRailAbout: $("#btnRailAbout"),
+    aboutDialog: $("#aboutDialog"),
+    aboutVersion: $("#aboutVersion"),
     globalModelLabel: $("#globalModelLabel"),
     btnOpenModelTab: $("#btnOpenModelTab"),
     meetingPanel: $("#meetingPanel"),
@@ -165,6 +168,10 @@
     setMeetingContext: $("#setMeetingContext"),
     setMeetingDiarization: $("#setMeetingDiarization"),
     setDiarizationModel: $("#setDiarizationModel"),
+    setModelDownloadSource: $("#setModelDownloadSource"),
+    modelDownloadSourceHint: $("#modelDownloadSourceHint"),
+    setDownloadSourceName: $("#setDownloadSourceName"),
+    setDownloadSourceUrl: $("#setDownloadSourceUrl"),
     diarizationStatus: $("#diarizationStatus"),
     meetingDiarizationHint: $("#meetingDiarizationHint"),
     btnDownloadDiarization: $("#btnDownloadDiarization"),
@@ -2138,6 +2145,106 @@
     }
   }
 
+  const DEFAULT_DOWNLOAD_SOURCES = [
+    { id: "hf-mirror", name: "HF-Mirror（默认）", url: "https://hf-mirror.com", builtin: true },
+    { id: "huggingface", name: "Hugging Face 官方", url: "https://huggingface.co", builtin: true },
+  ];
+
+  function currentDownloadSources(s = state.settings || {}) {
+    const rows = Array.isArray(s.model_download_sources) ? s.model_download_sources : [];
+    return rows.length ? rows : DEFAULT_DOWNLOAD_SOURCES;
+  }
+
+  function renderDownloadSources(s = state.settings || {}) {
+    if (!els.setModelDownloadSource) return;
+    const sources = currentDownloadSources(s);
+    const selectedId = s.model_download_source || sources[0].id;
+    els.setModelDownloadSource.replaceChildren();
+    for (const source of sources) {
+      const option = make(
+        "option",
+        "",
+        `${source.name || source.url}${source.builtin ? "" : "（自定义）"}`
+      );
+      option.value = source.id;
+      els.setModelDownloadSource.appendChild(option);
+    }
+    els.setModelDownloadSource.value = sources.some((item) => item.id === selectedId)
+      ? selectedId
+      : sources[0].id;
+    const selected = sources.find((item) => item.id === els.setModelDownloadSource.value) || sources[0];
+    if (els.modelDownloadSourceHint) {
+      els.modelDownloadSourceHint.textContent = selected ? `地址：${selected.url}` : "";
+    }
+  }
+
+  function markSettingsNotice(text) {
+    if (!els.settingsSaveStatus) return;
+    els.settingsSaveStatus.textContent = text;
+    els.settingsSaveStatus.classList.remove("good", "bad");
+  }
+
+  function addDownloadSource() {
+    const nameInput = els.setDownloadSourceName;
+    const urlInput = els.setDownloadSourceUrl;
+    const name = (nameInput && nameInput.value.trim()) || "";
+    let url = (urlInput && urlInput.value.trim()) || "";
+    if (!name) {
+      toast("请填写下载源名称", "bad");
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    try {
+      const parsed = new URL(url);
+      if (!/^https?:$/.test(parsed.protocol)) throw new Error("协议不支持");
+      url = parsed.toString().replace(/\/$/, "");
+    } catch (_) {
+      toast("下载源地址无效，需要 http/https 地址", "bad");
+      return;
+    }
+    const sources = currentDownloadSources().map((item) => ({ ...item }));
+    if (sources.some((item) => item.url === url)) {
+      toast("这个地址已经存在", "bad");
+      return;
+    }
+    if (sources.length >= 20) {
+      toast("下载源最多 20 个", "bad");
+      return;
+    }
+    const source = {
+      id: `custom-${Date.now().toString(36)}`,
+      name: name.slice(0, 80),
+      url,
+      builtin: false,
+    };
+    sources.push(source);
+    state.settings.model_download_sources = sources;
+    state.settings.model_download_source = source.id;
+    renderDownloadSources();
+    if (nameInput) nameInput.value = "";
+    if (urlInput) urlInput.value = "";
+    markSettingsNotice("下载源已添加并选用；点击「保存设置」后生效。");
+  }
+
+  function removeDownloadSource() {
+    if (!els.setModelDownloadSource) return;
+    const id = els.setModelDownloadSource.value;
+    const sources = currentDownloadSources();
+    const target = sources.find((item) => item.id === id);
+    if (!target) return;
+    if (target.builtin) {
+      toast("内置下载源不能删除", "bad");
+      return;
+    }
+    const remaining = sources.filter((item) => item.id !== id);
+    state.settings.model_download_sources = remaining;
+    if (state.settings.model_download_source === id) {
+      state.settings.model_download_source = remaining[0] ? remaining[0].id : "hf-mirror";
+    }
+    renderDownloadSources();
+    markSettingsNotice("下载源已移除；点击「保存设置」后生效。");
+  }
+
   function formatBytes(value) {
     const size = Number(value) || 0;
     if (size >= 1024 ** 3) return `${(size / 1024 ** 3).toFixed(1)} GB`;
@@ -2385,6 +2492,7 @@
       els.setDiarizationModel.value = s.diarization_model || "wespeaker_en_voxceleb_resnet34";
     }
     els.setRunAsAdmin.checked = s.run_as_admin === true;
+    renderDownloadSources(s);
     els.setVoiceHotkey.value = s.voice_hotkey || "ctrl+alt+space";
     els.setVoiceHotkeyHold.value = s.voice_hotkey_hold ? "true" : "false";
     els.setHardwareAuto.checked = s.hardware_auto_configure !== false;
@@ -2921,6 +3029,8 @@
     payload.api_key = els.setApiKey.value.trim();
     payload.api_disable_thinking = els.setApiDisableThinking.checked;
     payload.llm_model = els.setLocalModel.value;
+    payload.model_download_source = els.setModelDownloadSource.value;
+    payload.model_download_sources = currentDownloadSources();
     payload.asr_model = els.setAsrModel.value;
     payload.ui_language = els.setUiLanguage.value;
     payload.call_asr_language = els.setCallAsrLanguage.value;
@@ -2981,6 +3091,7 @@
       const res = await api("/api/settings", { method: "POST", body: payload });
       state.settings = res.settings || payload;
       saved = true;
+      renderDownloadSources(state.settings);
       els.setApiKey.value = "";
       renderApiKeyStatus(!!state.settings.api_key_saved);
       if (previousUiLanguage !== (state.settings.ui_language || "zh")) {
@@ -3154,7 +3265,7 @@
       if (state.profileDirty) persistProfile();
     });
 
-    $("#btnSettings").addEventListener("click", openSettings);
+    $("#btnSettings")?.addEventListener("click", openSettings);
     for (const button of $$("[data-settings-tab]", els.settingsTabs)) {
       button.addEventListener("click", () => applySettingsTab(button.dataset.settingsTab));
     }
@@ -3175,6 +3286,19 @@
       button.addEventListener("click", () => switchMode(button.dataset.mode));
     }
     els.btnRailSettings.addEventListener("click", () => openSettings());
+    if (els.btnRailAbout) {
+      els.btnRailAbout.addEventListener("click", () => {
+        if (els.aboutVersion) {
+          els.aboutVersion.textContent =
+            state.displayVersion || (state.version ? `v${state.version}` : "v1.0");
+        }
+        if (els.aboutDialog && !els.aboutDialog.open) els.aboutDialog.showModal();
+      });
+    }
+    for (const id of ["btnCloseAbout", "btnCloseAboutFoot"]) {
+      const button = document.getElementById(id);
+      if (button) button.addEventListener("click", () => els.aboutDialog?.close());
+    }
     els.btnOpenModelTab.addEventListener("click", () => applySettingsTab("model"));
     els.btnApplyHardware.addEventListener("click", async () => {
       try {
@@ -3190,8 +3314,23 @@
         toast(err.message, "bad");
       }
     });
-    els.btnRefreshModels.addEventListener("click", async () => {
-      try {
+    if ($("#btnAddDownloadSource")) {
+      $("#btnAddDownloadSource").addEventListener("click", addDownloadSource);
+    }
+    if ($("#btnRemoveDownloadSource")) {
+      $("#btnRemoveDownloadSource").addEventListener("click", removeDownloadSource);
+    }
+    if (els.setModelDownloadSource) {
+      els.setModelDownloadSource.addEventListener("change", () => {
+        const sources = currentDownloadSources();
+        const selected = sources.find((item) => item.id === els.setModelDownloadSource.value);
+        if (els.modelDownloadSourceHint) {
+          els.modelDownloadSourceHint.textContent = selected ? `地址：${selected.url}` : "";
+        }
+        markSettingsNotice("下载源已切换；点击「保存设置」后生效。");
+      });
+    }
+    els.btnRefreshModels.addEventListener("click", async () => {      try {
         state.models = await api("/api/models?refresh=1");
         renderModelChoices(state.settings);
         await loadModelManagement();
