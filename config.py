@@ -229,6 +229,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "voice_max_seconds": 90,
     "voice_trigger_mode": "hotkey",
     "voice_overlay_enabled": True,
+    "voice_cue_enabled": True,
     "voice_no_overlay_insert": "translation",
     "voice_focus_skip_fullscreen": True,
     "voice_focus_titles": "DeepSeek Harness",
@@ -472,6 +473,7 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
             trigger = "hotkey"
         clean["voice_trigger_mode"] = trigger
         clean["voice_overlay_enabled"] = bool(clean.get("voice_overlay_enabled", True))
+        clean["voice_cue_enabled"] = bool(clean.get("voice_cue_enabled", True))
         insert_mode = str(clean.get("voice_no_overlay_insert", "translation") or "translation")
         if insert_mode not in ("original", "translation"):
             insert_mode = "translation"

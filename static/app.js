@@ -166,6 +166,7 @@
     setVoiceNoOverlayInsert: $("#setVoiceNoOverlayInsert"),
     setVoiceMaxSeconds: $("#setVoiceMaxSeconds"),
     setVoiceOverlayEnabled: $("#setVoiceOverlayEnabled"),
+    setVoiceCueEnabled: $("#setVoiceCueEnabled"),
     setVoiceFocusSkipFullscreen: $("#setVoiceFocusSkipFullscreen"),
     setVoiceAutoPunctuation: $("#setVoiceAutoPunctuation"),
     setVoiceAutoProofread: $("#setVoiceAutoProofread"),
@@ -2377,6 +2378,7 @@
     els.setVoiceNoOverlayInsert.value = s.voice_no_overlay_insert || "translation";
     els.setVoiceMaxSeconds.value = String(s.voice_max_seconds || 90);
     els.setVoiceOverlayEnabled.checked = s.voice_overlay_enabled !== false;
+    els.setVoiceCueEnabled.checked = s.voice_cue_enabled !== false;
     els.setVoiceFocusSkipFullscreen.checked = s.voice_focus_skip_fullscreen !== false;
     els.setVoiceAutoPunctuation.checked = s.voice_auto_punctuation !== false;
     els.setVoiceAutoProofread.checked = s.voice_auto_proofread !== false;
@@ -2701,6 +2703,7 @@
     payload.voice_no_overlay_insert = els.setVoiceNoOverlayInsert.value;
     payload.voice_max_seconds = Number(els.setVoiceMaxSeconds.value);
     payload.voice_overlay_enabled = els.setVoiceOverlayEnabled.checked;
+    payload.voice_cue_enabled = els.setVoiceCueEnabled.checked;
     payload.voice_focus_skip_fullscreen = els.setVoiceFocusSkipFullscreen.checked;
     payload.voice_auto_punctuation = els.setVoiceAutoPunctuation.checked;
     payload.voice_auto_proofread = els.setVoiceAutoProofread.checked;

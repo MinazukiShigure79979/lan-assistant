@@ -32,6 +32,7 @@ except Exception:
     pass
 
 import config
+import audio_cue
 import diarization
 import hardware
 import language
@@ -932,6 +933,8 @@ class App:
             error="",
             started_at=time.time(),
         )
+        if self.settings.get("voice_cue_enabled", True):
+            audio_cue.play_start()
         max_seconds = max(15, min(180, int(self.settings.get("voice_max_seconds", 90))))
         timer = threading.Timer(max_seconds, self.stop_voice_input)
         timer.daemon = True
@@ -958,6 +961,8 @@ class App:
             self._voice_hold_active = False
             self._set_voice_state(status="error", error="没有录到声音，请再试一次。")
             return {"ok": False, "error": "没有录到声音。"}
+        if self.settings.get("voice_cue_enabled", True):
+            audio_cue.play_stop()
         self._voice_hold_active = False
         self._focus_cooldown_until = time.time() + 2.5
         self._set_voice_state(status="transcribing", error="")

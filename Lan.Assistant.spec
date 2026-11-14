@@ -26,6 +26,7 @@ hiddenimports = [
     "subtitle_overlay",
     "voice_overlay",
     "voice_input",
+    "audio_cue",
     "pystray._win32",
     "pystray._base",
     "tkinter",

@@ -962,6 +962,7 @@
             </div>
             <div class="check-grid">
               <label class="check"><input type="checkbox" id="setVoiceOverlayEnabled" checked><span><b>显示校对浮窗</b><small>关闭后识别完直接插入，不再显示校对窗口</small></span></label>
+              <label class="check"><input type="checkbox" id="setVoiceCueEnabled" checked><span><b>录音提示音</b><small>开始录音“滴”，结束录音“嘟”；声音很轻，只在录音时播放</small></span></label>
               <label class="check"><input type="checkbox" id="setVoiceFocusSkipFullscreen" checked><span><b>全屏时不自动监听</b><small>避免在游戏中误开麦克风；需要时仍可用快捷键</small></span></label>
               <label class="check"><input type="checkbox" id="setVoiceAutoPunctuation" checked><span><b>自动补标点</b><small>Whisper 没给出结尾标点时补「。」或「.」；不会改写句子内容</small></span></label>
               <label class="check"><input type="checkbox" id="setVoiceAutoProofread" checked><span><b>自动文字校对</b><small>用当前模型修正明显同音字/错别字，不改变原意；会增加一点生成时间</small></span></label>
@@ -1099,7 +1100,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
-  <script src="/static/i18n.js?v=15"></script>
-  <script src="/static/app.js?v=78"></script>
+  <script src="/static/i18n.js?v=16"></script>
+  <script src="/static/app.js?v=79"></script>
 </body>
 </html>
