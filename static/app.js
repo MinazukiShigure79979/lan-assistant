@@ -2725,13 +2725,16 @@
   async function deleteFilteredSessions() {
     if (!state.sessions) return;
     const mode = els.sessionDeleteMode ? els.sessionDeleteMode.value : "all";
-    const days = Number(els.sessionDeleteDays ? els.sessionDeleteDays.value : 30) || 30;
-    const cutoff = Date.now() - days * 86400000;
+    const rawDays = els.sessionDeleteDays ? els.sessionDeleteDays.value : "30";
+    const allTime = rawDays === "0";
+    const days = allTime ? 0 : Number(rawDays) || 30;
+    const cutoff = allTime ? Number.POSITIVE_INFINITY : Date.now() - days * 86400000;
     const predicted = (state.sessions.sessions || []).filter(
       (row) => !row.active && (mode === "all" || row.mode === mode) && new Date(row.started_at).getTime() < cutoff
     ).length;
     const modeLabel = mode === "all" ? "全部类型" : SESSION_MODE_LABELS[mode] || "全部类型";
-    if (!window.confirm(`删除早于 ${days} 天的「${modeLabel}」会话，共 ${predicted} 个？\n删除后不能恢复。`)) return;
+    const timeLabel = allTime ? "全部时间" : `早于 ${days} 天`;
+    if (!window.confirm(`删除${timeLabel}的「${modeLabel}」会话，共 ${predicted} 个？\n删除后不能恢复。`)) return;
     const button = $("#btnDeleteSessionsFiltered");
     if (button) {
       button.disabled = true;
