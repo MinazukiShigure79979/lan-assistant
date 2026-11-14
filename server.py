@@ -475,6 +475,9 @@ class App:
         self.partial: dict[str, Optional[dict[str, Any]]] = {"other": None, "me": None}
         self._partial_prev: dict[str, tuple[int, str]] = {}
         self._partial_committed: dict[str, tuple[int, str]] = {}
+        self._partial_translate_queue: queue.Queue = queue.Queue(maxsize=1)
+        self._partial_translate_gen = 0
+        self._partial_translate_last: tuple[int, str] = (0, "")
         self.levels = {"other": 0.0, "me": 0.0}
         self.active_seq = {"other": 0, "me": 0}
         self.asr_status = "loading"
@@ -600,6 +603,7 @@ class App:
         for target, name in (
             (self._asr_worker, "asr-worker"),
             (self._partial_worker, "partial-worker"),
+            (self._partial_translation_worker, "partial-translate"),
             (self._init_models, "model-init"),
         ):
             thread = threading.Thread(target=target, name=name, daemon=True)
@@ -1380,14 +1384,24 @@ class App:
                 stable = candidate
             self._partial_prev[speaker] = (seq, text)
             self._partial_committed[speaker] = (seq, stable)
+            previous_partial = self.partial.get(speaker) or {}
+            previous_zh = ""
+            previous_zh_for = ""
+            if previous_partial.get("seq") == seq:
+                previous_zh = str(previous_partial.get("zh", "") or "")
+                previous_zh_for = str(previous_partial.get("zh_for", "") or "")
             self.partial[speaker] = {
                 "speaker": speaker,
                 "text": text,
                 "stable": stable,
                 "seq": seq,
                 "ts": time.time(),
+                "zh": previous_zh,
+                "zh_for": previous_zh_for,
             }
             self.bus.publish({"type": "partial", "data": self.partial[speaker]})
+            if speaker == "other":
+                self._queue_partial_translation(seq, stable)
             if speaker == "me":
                 # A manual “我卡住了” hint must survive the user starting to
                 # speak; it is exactly what they are trying to use.
@@ -1433,6 +1447,7 @@ class App:
             self.bus.publish({"type": "turn", "data": turn})
             self._save_turn(turn)
         if speaker == "other":
+            self._invalidate_partial_translation()
             self._cancel_continuation(clear=True)
             # The microphone often transcribes the speaker output a fraction of
             # a second before the loopback copy.  Remove those duplicates when
@@ -1870,6 +1885,79 @@ class App:
             self._translation_timer.daemon = True
             self._translation_timer.start()
 
+    def _invalidate_partial_translation(self) -> None:
+        with self.lock:
+            self._partial_translate_gen += 1
+            self._partial_translate_last = (0, "")
+        while True:
+            try:
+                self._partial_translate_queue.get_nowait()
+            except queue.Empty:
+                break
+
+    def _queue_partial_translation(self, seq: int, text: str) -> None:
+        if self.mode != "translate" or not self.settings.get("translate", True):
+            return
+        value = str(text or "").strip()
+        if len(value) < 2:
+            return
+        with self.lock:
+            if self._partial_translate_last == (seq, value):
+                return
+            self._partial_translate_last = (seq, value)
+            item = {
+                "gen": self._partial_translate_gen,
+                "seq": seq,
+                "text": value,
+            }
+        try:
+            self._partial_translate_queue.put_nowait(item)
+        except queue.Full:
+            try:
+                self._partial_translate_queue.get_nowait()
+                self._partial_translate_queue.put_nowait(item)
+            except Exception:
+                pass
+
+    def _partial_translation_worker(self) -> None:
+        while not self._closed:
+            try:
+                item = self._partial_translate_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if item is None:
+                break
+            if (
+                item.get("gen") != self._partial_translate_gen
+                or not self.capture_running
+                or self.mode != "translate"
+            ):
+                continue
+            current = self.partial.get("other") or {}
+            if current.get("seq") != item.get("seq"):
+                continue
+            target = str(self.settings.get("translate_target_language", "zh") or "zh")
+            if target not in ("zh", "en", "ja", "ko"):
+                target = "zh"
+            try:
+                zh = self.brain.translate(str(item.get("text", "")), target)
+            except Exception:
+                continue
+            if not zh:
+                continue
+            if item.get("gen") != self._partial_translate_gen:
+                continue
+            current = self.partial.get("other") or {}
+            if current.get("seq") != item.get("seq"):
+                continue
+            if not str(current.get("stable", "") or "").startswith(str(item.get("text", "") or "")):
+                continue
+            current["zh"] = str(zh)[:1200]
+            current["zh_for"] = str(item.get("text", ""))[:1200]
+            current["zh_at"] = time.time()
+            self.partial["other"] = current
+            self.bus.publish({"type": "partial", "data": dict(current)})
+
     def _translate_pending(self) -> None:
         """Fill Chinese translations for recent turns that don't have one yet."""
         with self._turns_lock:
@@ -1952,7 +2040,7 @@ class App:
             )
             engine_settings["max_segment_s"] = min(
                 int(self.settings.get("max_segment_s", 20)),
-                12,
+                6,
             )
         self.engine.start(other, mic, engine_settings)
         self.capture_running = True
@@ -1990,10 +2078,12 @@ class App:
                 self._translation_timer = None
         self.engine.stop()
         self.capture_running = False
+        self._invalidate_partial_translation()
         self.levels = {"other": 0.0, "me": 0.0}
         self.partial = {"other": None, "me": None}
         self._partial_prev.clear()
         self._partial_committed.clear()
+        self._invalidate_partial_translation()
         self.suggestion = None
         self.bus.publish({"type": "suggestion", "data": None})
         self._cancel_continuation(clear=True)
@@ -2135,6 +2225,7 @@ $speaker.Dispose()
             self.partial = {"other": None, "me": None}
             self._partial_prev.clear()
             self._partial_committed.clear()
+            self._invalidate_partial_translation()
             self.active_seq = {"other": 0, "me": 0}
             self.session_path = None
             self._last_final.clear()

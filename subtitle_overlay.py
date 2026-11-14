@@ -261,7 +261,7 @@ class Overlay:
             partial_text = str(partial_state.get("stable") or partial_state.get("text") or "").strip()
             if partial_text:
                 en = partial_text
-                zh = ""
+                zh = str(partial_state.get("zh", "") or "").strip()
                 is_partial = True
                 turn_id = f"partial-{partial_state.get('seq', 0)}"
             else:

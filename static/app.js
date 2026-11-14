@@ -64,6 +64,7 @@
     partialWrap: $("#partialWrap"),
     partialSpeaker: $("#partialSpeaker"),
     partialText: $("#partialText"),
+    partialZh: $("#partialZh"),
     transcriptScroll: $("#transcriptScroll"),
     asrLatency: $("#asrLatency"),
     meterOther: $("#meterOther"),
@@ -817,6 +818,9 @@
       ? "字幕识别中"
       : (p.speaker === "me" ? "我 · 识别中" : "对方 · 识别中");
     els.partialText.textContent = p.text;
+    const partialZh = String(p.zh || "").trim();
+    els.partialZh.textContent = partialZh;
+    els.partialZh.classList.toggle("hidden", !partialZh);
     const scroller = els.transcriptScroll;
     if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120) {
       scroller.scrollTop = scroller.scrollHeight;
