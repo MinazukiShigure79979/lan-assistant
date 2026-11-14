@@ -132,11 +132,11 @@ class Overlay:
         threading.Thread(target=self._poll, name="subtitle-poll", daemon=True).start()
         self.root.after(120, self._consume)
 
-    def _render(self, original: str, chinese: str) -> None:
+    def _render(self, original: str, chinese: str, partial: bool = False) -> None:
         self.canvas.delete("all")
         cx = self.width // 2
         wrap = self.width - 140
-        # Lay out the two lines without a background, then centre the group.
+        # Lay out one or two lines without a background, then centre the group.
         en_item = self.canvas.create_text(
             cx,
             0,
@@ -149,23 +149,27 @@ class Overlay:
         )
         en_box = self.canvas.bbox(en_item) or (0, 0, 0, 30)
         en_h = max(24, en_box[3] - en_box[1])
-        zh_text = chinese[:600] if chinese else "字幕翻译中…"
-        zh_item = self.canvas.create_text(
-            cx,
-            en_h + 8,
-            text=zh_text,
-            font=self.font_chinese,
-            fill="#ffffff",
-            width=wrap,
-            justify="center",
-            anchor="n",
-        )
-        zh_box = self.canvas.bbox(zh_item) or (0, 0, 0, 32)
-        zh_h = max(30, zh_box[3] - zh_box[1])
-        total = en_h + 8 + zh_h
+        zh_text = chinese[:600] if chinese else (None if partial else "字幕翻译中…")
+        zh_item = None
+        zh_h = 0
+        if zh_text is not None:
+            zh_item = self.canvas.create_text(
+                cx,
+                en_h + 8,
+                text=zh_text,
+                font=self.font_chinese,
+                fill="#ffffff",
+                width=wrap,
+                justify="center",
+                anchor="n",
+            )
+            zh_box = self.canvas.bbox(zh_item) or (0, 0, 0, 32)
+            zh_h = max(30, zh_box[3] - zh_box[1])
+        total = en_h + (8 + zh_h if zh_item is not None else 0)
         start = max(4, (self.height - total) // 2)
         self.canvas.move(en_item, 0, start)
-        self.canvas.move(zh_item, 0, start)
+        if zh_item is not None:
+            self.canvas.move(zh_item, 0, start)
         # A soft dark outline instead of a bar; keeps text legible over bright
         # scenes while letting the video show through everywhere else.
         for dx, dy in ((-2, 1), (2, 1), (0, 2), (0, -1)):
@@ -180,20 +184,22 @@ class Overlay:
                 anchor="n",
                 tags="shadow",
             )
-            self.canvas.create_text(
-                cx + dx,
-                start + en_h + 8 + dy,
-                text=zh_text,
-                font=self.font_chinese,
-                fill="#000000",
-                width=wrap,
-                justify="center",
-                anchor="n",
-                tags="shadow",
-            )
+            if zh_item is not None:
+                self.canvas.create_text(
+                    cx + dx,
+                    start + en_h + 8 + dy,
+                    text=zh_text,
+                    font=self.font_chinese,
+                    fill="#000000",
+                    width=wrap,
+                    justify="center",
+                    anchor="n",
+                    tags="shadow",
+                )
         self.canvas.tag_lower("shadow")
         self.canvas.tag_raise(en_item)
-        self.canvas.tag_raise(zh_item)
+        if zh_item is not None:
+            self.canvas.tag_raise(zh_item)
 
     def _poll(self) -> None:
         while not self._stop.is_set():
@@ -250,26 +256,38 @@ class Overlay:
             if not state.get("capture"):
                 self._hide()
                 return
-            latest = state.get("latest")
-            if not latest:
-                self._hide()
-                return
-            if latest.get("speaker") != "other":
-                self._hide()
-                return
-            en = str(latest.get("en", "") or "").strip()
-            zh = str(latest.get("zh", "") or "").strip()
+
+            partial_state = state.get("partial") or {}
+            partial_text = str(partial_state.get("stable") or partial_state.get("text") or "").strip()
+            if partial_text:
+                en = partial_text
+                zh = ""
+                is_partial = True
+                turn_id = f"partial-{partial_state.get('seq', 0)}"
+            else:
+                latest = state.get("latest")
+                if not latest or latest.get("speaker") != "other":
+                    self._hide()
+                    return
+                en = str(latest.get("en", "") or "").strip()
+                zh = str(latest.get("zh", "") or "").strip()
+                is_partial = False
+                turn_id = str(latest.get("id", ""))
+
             if not en:
                 self._hide()
                 return
-            turn_id = str(latest.get("id", ""))
-            text_key = en + "\n" + zh
+            text_key = ("P:" if is_partial else "F:") + en + "\n" + zh
             if text_key != self.last_text:
                 self.last_text = text_key
                 self.last_turn_id = turn_id
                 self.last_change = time.time()
-                print(f"subtitle {turn_id}: {en[:80]!r} / {zh[:80]!r}", flush=True)
-                self._render(en[:900], zh[:900])
+                print(
+                    f"subtitle {turn_id}{' partial' if is_partial else ''}: "
+                    f"{en[:80]!r} / {zh[:80]!r}",
+                    flush=True,
+                )
+                self._render(en[:900], zh[:900], partial=is_partial)
                 self.root.geometry(f"{self.width}x{self.height}+{self.x}+{self.y}")
                 self._show()
             elif self.visible and time.time() - self.last_change > HIDE_AFTER_SECONDS:

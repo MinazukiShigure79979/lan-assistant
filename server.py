@@ -363,6 +363,45 @@ def _looks_unfinished(text: str) -> bool:
     return words[-1] in _UNFINISHED_WORDS
 
 
+def _stable_partial_prefix(previous: str, current: str) -> str:
+    """LocalAgreement-style stable prefix for live subtitles.
+
+    Partial Whisper decodes revise the tail.  Only the common prefix of two
+    consecutive decodes is considered stable; Latin prefixes are cut back to a
+    word boundary so a word is never committed half-way.
+    """
+    prev = str(previous or "").strip()
+    curr = str(current or "").strip()
+    if not prev or not curr:
+        return ""
+    limit = min(len(prev), len(curr))
+    index = 0
+    while index < limit and prev[index] == curr[index]:
+        index += 1
+    prefix = curr[:index]
+    if not prefix:
+        return ""
+    if re.search(r"[A-Za-z]", prefix):
+        cut = prefix.rfind(" ")
+        if cut > 0:
+            prefix = prefix[:cut]
+    return prefix.strip()
+
+
+def _initial_partial_prefix(text: str) -> str:
+    """Show a conservative first partial instead of waiting for two decodes."""
+    value = str(text or "").strip()
+    if not value:
+        return ""
+    if re.search(r"[A-Za-z]", value):
+        words = value.split()
+        if len(words) > 3:
+            return " ".join(words[:-2]).strip()
+        return value
+    # CJK has no spaces; hold back the two most likely-to-change characters.
+    return value[:-2].strip() if len(value) > 4 else value
+
+
 class EventBus:
     def __init__(self) -> None:
         self._clients: list[queue.Queue] = []
@@ -434,6 +473,8 @@ class App:
         self.capture_running = False
         self.started_at: Optional[float] = None
         self.partial: dict[str, Optional[dict[str, Any]]] = {"other": None, "me": None}
+        self._partial_prev: dict[str, tuple[int, str]] = {}
+        self._partial_committed: dict[str, tuple[int, str]] = {}
         self.levels = {"other": 0.0, "me": 0.0}
         self.active_seq = {"other": 0, "me": 0}
         self.asr_status = "loading"
@@ -1323,7 +1364,29 @@ class App:
                 continue
             if seq != self.active_seq.get(speaker, 0) or not self.capture_running:
                 continue
-            self.partial[speaker] = {"speaker": speaker, "text": text, "seq": seq, "ts": time.time()}
+            prev_seq, prev_text = self._partial_prev.get(speaker, (0, ""))
+            if prev_seq != seq:
+                prev_text = ""
+            committed_seq, committed = self._partial_committed.get(speaker, (0, ""))
+            if prev_text:
+                candidate = _stable_partial_prefix(prev_text, text)
+            else:
+                candidate = _initial_partial_prefix(text)
+            if committed_seq == seq and committed and candidate.startswith(committed):
+                stable = candidate
+            elif committed_seq == seq and committed:
+                stable = committed
+            else:
+                stable = candidate
+            self._partial_prev[speaker] = (seq, text)
+            self._partial_committed[speaker] = (seq, stable)
+            self.partial[speaker] = {
+                "speaker": speaker,
+                "text": text,
+                "stable": stable,
+                "seq": seq,
+                "ts": time.time(),
+            }
             self.bus.publish({"type": "partial", "data": self.partial[speaker]})
             if speaker == "me":
                 # A manual “我卡住了” hint must survive the user starting to
@@ -1364,6 +1427,8 @@ class App:
             }
             self.turns.append(turn)
             self.partial[speaker] = None
+            self._partial_prev.pop(speaker, None)
+            self._partial_committed.pop(speaker, None)
             self.active_seq[speaker] = int(item["meta"].get("seq", 0)) + 1
             self.bus.publish({"type": "turn", "data": turn})
             self._save_turn(turn)
@@ -1430,6 +1495,8 @@ class App:
             last["updated_at"] = now
             last["fragments"] = int(last.get("fragments", 1) or 1) + 1
             self.partial["me"] = None
+            self._partial_prev.pop("me", None)
+            self._partial_committed.pop("me", None)
             self.active_seq["me"] = int(item["meta"].get("seq", 0)) + 1
             snapshot = dict(last)
         self.bus.publish({"type": "turn_update", "data": snapshot})
@@ -1925,6 +1992,8 @@ class App:
         self.capture_running = False
         self.levels = {"other": 0.0, "me": 0.0}
         self.partial = {"other": None, "me": None}
+        self._partial_prev.clear()
+        self._partial_committed.clear()
         self.suggestion = None
         self.bus.publish({"type": "suggestion", "data": None})
         self._cancel_continuation(clear=True)
@@ -2064,6 +2133,8 @@ $speaker.Dispose()
             self._turn_seq = 0
             self.suggestion = None
             self.partial = {"other": None, "me": None}
+            self._partial_prev.clear()
+            self._partial_committed.clear()
             self.active_seq = {"other": 0, "me": 0}
             self.session_path = None
             self._last_final.clear()
@@ -2740,6 +2811,7 @@ class Handler(BaseHTTPRequestHandler):
                     "mode": self.app.mode,
                     "capture": self.app.capture_running,
                     "latest": latest,
+                    "partial": self.app.partial.get("other"),
                 }
             )
             return
