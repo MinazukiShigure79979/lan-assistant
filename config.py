@@ -225,6 +225,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {    "other_device": None,
     "media_title": "",
     "media_context": "",
     "subtitle_style": "natural",
+    "subtitle_font_family": "Microsoft YaHei UI",
+    "subtitle_original_size": 15,
+    "subtitle_translation_size": 23,
+    "subtitle_original_color": "#f4f8fd",
+    "subtitle_translation_color": "#ffffff",
     "subtitle_silence_ms": 350,
     "subtitle_max_segment_s": 6,
     "partial_interval_ms": 800,
@@ -460,6 +465,20 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
         clean["subtitle_style"] = str(clean.get("subtitle_style", "natural") or "natural")
         if clean["subtitle_style"] not in ("natural", "literal", "terminology"):
             clean["subtitle_style"] = "natural"
+        family = str(clean.get("subtitle_font_family", "Microsoft YaHei UI") or "").strip()[:80]
+        clean["subtitle_font_family"] = family or "Microsoft YaHei UI"
+        clean["subtitle_original_size"] = max(
+            10, min(40, int(clean.get("subtitle_original_size", 15)))
+        )
+        clean["subtitle_translation_size"] = max(
+            14, min(56, int(clean.get("subtitle_translation_size", 23)))
+        )
+        for key, fallback in (
+            ("subtitle_original_color", "#f4f8fd"),
+            ("subtitle_translation_color", "#ffffff"),
+        ):
+            color = str(clean.get(key, fallback) or fallback)
+            clean[key] = color if re.fullmatch(r"#[0-9a-fA-F]{6}", color) else fallback
         clean["subtitle_silence_ms"] = max(200, min(1200, int(clean.get("subtitle_silence_ms", 350))))
         clean["subtitle_max_segment_s"] = max(
             3, min(20, int(clean.get("subtitle_max_segment_s", 6)))

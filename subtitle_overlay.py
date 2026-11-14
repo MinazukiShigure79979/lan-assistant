@@ -121,10 +121,10 @@ class Overlay:
             relief="flat",
         )
         self.canvas.pack(fill="both", expand=True)
-        self.font_original = tkfont.Font(family="Segoe UI", size=15, weight="normal")
-        self.font_chinese = tkfont.Font(family="Microsoft YaHei UI", size=23, weight="bold")
-        self.font_original_small = tkfont.Font(family="Segoe UI", size=12, weight="normal")
-        self.font_chinese_small = tkfont.Font(family="Microsoft YaHei UI", size=18, weight="bold")
+        self.appearance_key = ""
+        self.en_color = "#f4f8fd"
+        self.zh_color = "#ffffff"
+        self._apply_appearance({})
         self._clickthrough_applied = False
 
         self.visible = False
@@ -160,6 +160,44 @@ class Overlay:
         self.final_lines = deque(kept, maxlen=3)
         return True
 
+    @staticmethod
+    def _dim(color: str) -> str:
+        try:
+            raw = str(color or "").lstrip("#")
+            if len(raw) != 6:
+                return color
+            r, g, b = (int(raw[0:2], 16), int(raw[2:4], 16), int(raw[4:6], 16))
+            factor = 0.76
+            return f"#{int(r * factor):02x}{int(g * factor):02x}{int(b * factor):02x}"
+        except Exception:
+            return color
+
+    def _apply_appearance(self, appearance: dict) -> None:
+        family = str(appearance.get("font_family") or "Microsoft YaHei UI")[:80]
+        original_size = max(10, min(40, int(appearance.get("original_size", 15) or 15)))
+        translation_size = max(14, min(56, int(appearance.get("translation_size", 23) or 23)))
+        original_color = str(appearance.get("original_color") or "#f4f8fd")
+        translation_color = str(appearance.get("translation_color") or "#ffffff")
+        key = (family, original_size, translation_size, original_color, translation_color)
+        if key == self.appearance_key:
+            return
+        self.appearance_key = key
+        self.font_original = tkfont.Font(family=family, size=original_size, weight="normal")
+        self.font_original_small = tkfont.Font(
+            family=family, size=max(9, original_size - 3), weight="normal"
+        )
+        self.font_chinese = tkfont.Font(family=family, size=translation_size, weight="bold")
+        self.font_chinese_small = tkfont.Font(
+            family=family, size=max(12, translation_size - 5), weight="bold"
+        )
+        self.en_color = original_color
+        self.zh_color = translation_color
+        self.height = max(350, min(760, int(190 + translation_size * 6.5 + original_size * 2)))
+        self.y = max(0, self.screen_h - self.height - 36)
+        self.render_key = ""
+        if getattr(self, "visible", False):
+            self.root.geometry(f"{self.width}x{self.height}+{self.x}+{self.y}")
+
     def _render_stack(self, entries: list[dict]) -> None:
         self.canvas.delete("all")
         cx = self.width // 2
@@ -172,8 +210,9 @@ class Overlay:
             only_one = count == 1
             en_font = self.font_original if (only_one or is_partial) else self.font_original_small
             zh_font = self.font_chinese if (only_one or is_partial) else self.font_chinese_small
-            en_fill = "#f4f8fd" if is_partial or index == count - 1 else "#c7d4e4"
-            zh_fill = "#ffffff" if is_partial or index == count - 1 else "#dce8f6"
+            latest = is_partial or index == count - 1
+            en_fill = self.en_color if latest else self._dim(self.en_color)
+            zh_fill = self.zh_color if latest else self._dim(self.zh_color)
             en = str(entry.get("en", "") or "")[:600]
             zh = str(entry.get("zh", "") or "")[:600]
             en_item = self.canvas.create_text(
@@ -319,6 +358,7 @@ class Overlay:
             if not state.get("capture"):
                 self._hide()
                 return
+            self._apply_appearance(state.get("appearance") or {})
 
             now = time.time()
             self._expire_lines(now)

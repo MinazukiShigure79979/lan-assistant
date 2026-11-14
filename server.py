@@ -2232,6 +2232,29 @@ class App:
     def start_overlay(self) -> bool:
         if self.overlay_running():
             return True
+        # Remove a hidden/orphaned subtitle overlay from an older app process
+        # so appearance settings always reach the current implementation.
+        try:
+            subprocess.run(
+                [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-WindowStyle",
+                    "Hidden",
+                    "-Command",
+                    (
+                        "Get-CimInstance Win32_Process -Filter \"Name='pythonw.exe'\" | "
+                        "Where-Object { $_.CommandLine -like '*subtitle_overlay.py*' } | "
+                        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+                    ),
+                ],
+                capture_output=True,
+                timeout=5,
+                creationflags=0x08000000,
+            )
+        except Exception:
+            pass
         command = self._helper_command("subtitle_overlay.py", "--subtitle-overlay")
         if command is None:
             return False
@@ -3167,6 +3190,26 @@ class Handler(BaseHTTPRequestHandler):
                     "capture": self.app.capture_running,
                     "latest": latest,
                     "partial": self.app.partial.get("other"),
+                    "appearance": {
+                        "font_family": str(
+                            self.app.settings.get("subtitle_font_family", "Microsoft YaHei UI")
+                            or "Microsoft YaHei UI"
+                        ),
+                        "original_size": int(
+                            self.app.settings.get("subtitle_original_size", 15) or 15
+                        ),
+                        "translation_size": int(
+                            self.app.settings.get("subtitle_translation_size", 23) or 23
+                        ),
+                        "original_color": str(
+                            self.app.settings.get("subtitle_original_color", "#f4f8fd")
+                            or "#f4f8fd"
+                        ),
+                        "translation_color": str(
+                            self.app.settings.get("subtitle_translation_color", "#ffffff")
+                            or "#ffffff"
+                        ),
+                    },
                     "poll_ms": max(80, min(1000, int(self.app.settings.get("overlay_poll_ms", 150)))),
                 }
             )

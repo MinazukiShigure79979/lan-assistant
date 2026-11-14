@@ -7,7 +7,7 @@
   <title>Lan.Assistant</title>
   <link rel="icon" type="image/png" sizes="256x256" href="/static/favicon.png?v=37">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=37">
-  <link rel="stylesheet" href="/static/app.css?v=80">
+  <link rel="stylesheet" href="/static/app.css?v=81">
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -681,6 +681,48 @@
           <div class="settings-block">
             <div class="settings-title">
               <div>
+                <h3>悬浮字幕外观</h3>
+                <p class="settings-block-desc">控制听读翻译悬浮字幕的字体、字号和颜色；保存后立即应用，不改动主界面字幕。</p>
+              </div>
+              <button type="button" class="btn btn-tiny" id="btnResetSubtitleAppearance">恢复默认</button>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>字体</span>
+                <input type="text" id="setSubtitleFontFamily" maxlength="80" list="subtitleFontFamilies" placeholder="Microsoft YaHei UI" autocomplete="off">
+                <datalist id="subtitleFontFamilies">
+                  <option value="Microsoft YaHei UI"></option>
+                  <option value="Segoe UI"></option>
+                  <option value="Noto Sans SC"></option>
+                  <option value="Microsoft JhengHei"></option>
+                  <option value="SimHei"></option>
+                  <option value="Arial"></option>
+                  <option value="Georgia"></option>
+                </datalist>
+              </label>
+              <label class="field">
+                <span>原文字号</span>
+                <input type="number" id="setSubtitleOriginalSize" min="10" max="40" step="1" inputmode="numeric">
+              </label>
+              <label class="field">
+                <span>译文字号</span>
+                <input type="number" id="setSubtitleTranslationSize" min="14" max="56" step="1" inputmode="numeric">
+              </label>
+              <label class="field">
+                <span>原文颜色</span>
+                <input type="color" id="setSubtitleOriginalColor" class="color-input">
+              </label>
+              <label class="field">
+                <span>译文颜色</span>
+                <input type="color" id="setSubtitleTranslationColor" class="color-input">
+              </label>
+            </div>
+            <div class="device-hint">默认：Microsoft YaHei UI，原文 15 号、译文 23 号，原文 #f4f8fd、译文 #ffffff。旧字幕会自动降亮度。</div>
+          </div>
+
+          <div class="settings-block">
+            <div class="settings-title">
+              <div>
                 <h3>延迟与性能</h3>
                 <p class="settings-block-desc">数值越小通常延迟越低，但会增加句子碎片和模型调用次数。前四项在下次开始听读时生效，后四项即时生效。</p>
               </div>
@@ -1261,7 +1303,7 @@
 
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
-  <script src="/static/i18n.js?v=20"></script>
-  <script src="/static/app.js?v=84"></script>
+  <script src="/static/i18n.js?v=21"></script>
+  <script src="/static/app.js?v=85"></script>
 </body>
 </html>

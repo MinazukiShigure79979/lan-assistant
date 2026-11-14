@@ -241,6 +241,11 @@
     setMediaTitle: $("#setMediaTitle"),
     setMediaContext: $("#setMediaContext"),
     setSubtitleStyle: $("#setSubtitleStyle"),
+    setSubtitleFontFamily: $("#setSubtitleFontFamily"),
+    setSubtitleOriginalSize: $("#setSubtitleOriginalSize"),
+    setSubtitleTranslationSize: $("#setSubtitleTranslationSize"),
+    setSubtitleOriginalColor: $("#setSubtitleOriginalColor"),
+    setSubtitleTranslationColor: $("#setSubtitleTranslationColor"),
     setSubtitleSilence: $("#setSubtitleSilence"),
     setPartialInterval: $("#setPartialInterval"),
     setPartialWindow: $("#setPartialWindow"),
@@ -2475,6 +2480,11 @@
     els.setMediaTitle.value = s.media_title || "";
     els.setMediaContext.value = s.media_context || "";
     els.setSubtitleStyle.value = s.subtitle_style || "natural";
+    els.setSubtitleFontFamily.value = s.subtitle_font_family || "Microsoft YaHei UI";
+    els.setSubtitleOriginalSize.value = String(s.subtitle_original_size || 15);
+    els.setSubtitleTranslationSize.value = String(s.subtitle_translation_size || 23);
+    els.setSubtitleOriginalColor.value = s.subtitle_original_color || "#f4f8fd";
+    els.setSubtitleTranslationColor.value = s.subtitle_translation_color || "#ffffff";
     els.setSubtitleSilence.value = String(s.subtitle_silence_ms || 350);
     els.setPartialInterval.value = String(s.partial_interval_ms || 800);
     els.setPartialWindow.value = String(s.partial_window_ms || 6000);
@@ -2514,6 +2524,15 @@
     renderDiarization();
     els.llmTestResult.classList.add("hidden");
     els.llmTestResult.textContent = "";
+  }
+
+  function resetSubtitleAppearance() {
+    if (els.setSubtitleFontFamily) els.setSubtitleFontFamily.value = "Microsoft YaHei UI";
+    if (els.setSubtitleOriginalSize) els.setSubtitleOriginalSize.value = "15";
+    if (els.setSubtitleTranslationSize) els.setSubtitleTranslationSize.value = "23";
+    if (els.setSubtitleOriginalColor) els.setSubtitleOriginalColor.value = "#f4f8fd";
+    if (els.setSubtitleTranslationColor) els.setSubtitleTranslationColor.value = "#ffffff";
+    markSettingsNotice("字幕外观已恢复默认；点击「保存设置」后生效。");
   }
 
   function diarizationModelInfo(modelId) {
@@ -3041,6 +3060,11 @@
     payload.media_title = els.setMediaTitle.value.trim();
     payload.media_context = els.setMediaContext.value.trim();
     payload.subtitle_style = els.setSubtitleStyle.value;
+    payload.subtitle_font_family = els.setSubtitleFontFamily.value.trim() || "Microsoft YaHei UI";
+    payload.subtitle_original_size = Number(els.setSubtitleOriginalSize.value) || 15;
+    payload.subtitle_translation_size = Number(els.setSubtitleTranslationSize.value) || 23;
+    payload.subtitle_original_color = els.setSubtitleOriginalColor.value || "#f4f8fd";
+    payload.subtitle_translation_color = els.setSubtitleTranslationColor.value || "#ffffff";
     payload.subtitle_silence_ms = Number(els.setSubtitleSilence.value);
     payload.partial_interval_ms = Number(els.setPartialInterval.value);
     payload.partial_window_ms = Number(els.setPartialWindow.value);
@@ -3317,7 +3341,9 @@
     if ($("#btnAddDownloadSource")) {
       $("#btnAddDownloadSource").addEventListener("click", addDownloadSource);
     }
-    if ($("#btnRemoveDownloadSource")) {
+    if ($("#btnResetSubtitleAppearance")) {
+      $("#btnResetSubtitleAppearance").addEventListener("click", resetSubtitleAppearance);
+    }    if ($("#btnRemoveDownloadSource")) {
       $("#btnRemoveDownloadSource").addEventListener("click", removeDownloadSource);
     }
     if (els.setModelDownloadSource) {
