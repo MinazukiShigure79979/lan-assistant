@@ -668,7 +668,7 @@
       els.brandSub.textContent = "语音输入 · 全局快捷键，校对后插入";
       els.featurePlaceholder.classList.remove("hidden");
       els.footHint.textContent = "语音输入 · 全局快捷键 · 校对浮窗 · 目标语言翻译";
-      document.title = `${title} · Lan.Assistant`;
+      document.title = `Lan.Assistant · ${title}`;
     } else {
       els.featurePlaceholder.classList.add("hidden");
       if (meeting) {
