@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Lan.Assistant</title>
+  <link rel="icon" type="image/png" sizes="256x256" href="/static/favicon.png?v=37">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=37">
+  <link rel="stylesheet" href="/static/app.css?v=60">
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="app">
+    <nav class="feature-rail" id="featureNav" aria-label="功能">
+      <div class="rail-head">
+        <div class="rail-mark" aria-hidden="true"><img src="/static/tray-icon.png?v=37" alt=""></div>
+        <div class="rail-head-copy"><b>WORKSPACES</b><span>选择工作区</span></div>
+      </div>
+      <div class="rail-nav">
+        <button type="button" class="rail-item active" data-mode="call">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a13 13 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>
+          <span class="rail-item-copy"><b>通话副驾</b><small>实时建议 · 续接</small></span>
+        </button>
+        <button type="button" class="rail-item" data-mode="translate">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 15h4M13 15h4M7 18h10"/></svg>
+          <span class="rail-item-copy"><b>听读翻译</b><small>字幕 · 悬浮 · 导出</small></span>
+        </button>
+        <button type="button" class="rail-item" data-mode="voice">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>
+          <span class="rail-item-copy"><b>语音输入</b><small>快捷键 · 翻译</small></span>
+        </button>
+        <button type="button" class="rail-item" data-mode="meeting">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h3"/></svg>
+          <span class="rail-item-copy"><b>会议纪要</b><small>转录 · 摘要 · 待办</small></span>
+        </button>
+      </div>
+      <div class="rail-bottom">
+        <button type="button" class="rail-settings" id="btnRailSettings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.09A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.09A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.04V3h4v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06L19.8 7l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.96 10H21v4h-.09A1.7 1.7 0 0 0 19.4 15z"/></svg>
+          <span>设置</span>
+        </button>
+      </div>
+    </nav>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <img src="/static/logo.png?v=37" alt="">
+        </div>
+        <div class="brand-copy">
+          <div class="eyebrow" id="brandEyebrow">LAN.ASSISTANT</div>
+          <h1><span id="brandTitle">Lan.Assistant</span> <span class="brand-sep">/</span> <span class="brand-sub" id="brandSub">通话副驾 · 听对方，帮你想好下一句</span></h1>
+        </div>
+      </div>
+
+      <div class="status-strip" aria-live="polite">
+        <span class="status-pill" id="pillAsr" data-state="loading" title="语音识别状态">
+          <i class="pill-dot"></i><span class="pill-label">语音识别</span><span class="pill-detail">准备中</span>
+        </span>
+        <span class="status-pill" id="pillLlm" data-state="loading" title="语言模型状态">
+          <i class="pill-dot"></i><span class="pill-label">语言模型</span><span class="pill-detail">准备中</span>
+        </span>
+      </div>
+
+      <div class="top-actions">
+        <button class="btn btn-ghost hidden" id="btnOverlay" title="显示/隐藏悬浮字幕">悬浮字幕</button>
+        <button class="btn btn-ghost hidden" id="btnProofread" title="校对本次字幕原文和翻译">校对字幕</button>
+        <button class="btn btn-ghost hidden" id="btnExportSubtitles" title="导出 SRT 字幕">导出字幕</button>
+        <button class="btn btn-ghost hidden" id="btnCallSummary" title="查看本次通话总结">通话总结</button>
+        <button class="btn btn-ghost" id="btnExport" title="导出本次对话记录">导出</button>
+        <button class="btn btn-ghost" id="btnSettings" title="音频设备与识别设置">设置</button>
+        <button class="btn btn-ghost" id="btnProfile" title="编辑你的背景预设">我的预设</button>
+        <button class="btn btn-primary" id="btnStart" title="开始 / 结束通话">
+          <span class="btn-record-dot"></span><span id="btnStartLabel">开始通话</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="profile-strip" id="profileStrip">
+      <div class="profile-avatar" id="profileAvatar">我</div>
+      <div class="profile-copy">
+        <span class="profile-name" id="profileName">还没有填写预设</span>
+        <span class="profile-goal" id="profileGoal">告诉副驾你是谁、这次想聊什么，建议会更贴合你。</span>
+      </div>
+      <button class="link profile-edit" id="btnProfileInline">编辑预设 <span aria-hidden="true">↗</span></button>
+    </div>
+
+    <div class="alerts" id="alerts" aria-live="assertive"></div>
+
+    <main class="workspace">
+      <section class="panel transcript-panel">
+        <header class="panel-head">
+          <div>
+            <div class="section-kicker" id="transcriptKicker">LIVE TRANSCRIPT</div>
+            <h2 id="transcriptHeading">对方在说什么</h2>
+          </div>
+          <div class="live-meta">
+            <span class="capture-state" id="captureState"><i></i><span>未开始</span></span>
+            <span class="timer" id="timer">00:00</span>
+          </div>
+        </header>
+
+        <div class="audio-strip">
+          <div class="audio-channel" id="channelOther">
+            <div class="channel-label"><span class="channel-dot other"></span><span id="otherChannelLabel">系统声音 · 对方</span></div>
+            <div class="meter"><i id="meterOther"></i></div>
+          </div>
+          <div class="audio-channel" id="channelMe">
+            <div class="channel-label"><span class="channel-dot me"></span>麦克风 · 我</div>
+            <div class="meter"><i id="meterMe"></i></div>
+          </div>
+        </div>
+
+        <div class="transcript-scroll" id="transcriptScroll">
+          <div class="empty-state" id="emptyState">
+            <div class="empty-quote" aria-hidden="true">“</div>
+            <h3 id="emptyTitle">把耳机戴好，剩下的交给它</h3>
+            <p id="emptyText">开始通话后，它会实时听清对方，并用对方的语言给出可以直接说的回答。</p>
+            <div class="steps" id="emptySteps">
+              <div class="step"><span>01</span><div><b>填好预设</b><small>你是谁、对方是谁、这次想聊什么</small></div></div>
+              <div class="step"><span>02</span><div><b>开始通话</b><small>建议戴耳机，避免麦克风收进对方声音</small></div></div>
+              <div class="step"><span>03</span><div><b>照着念</b><small>点一下回答卡片即可复制</small></div></div>
+            </div>
+            <button class="btn btn-primary empty-start" id="btnEmptyStart">开始第一次通话</button>
+          </div>
+          <div id="turns" class="turns"></div>
+          <div id="partialWrap" class="partial-wrap hidden">
+            <div class="partial-speaker" id="partialSpeaker">对方</div>
+            <div class="partial-bubble">
+              <span id="partialText"></span><span class="typing-dots"><i></i><i></i><i></i></span>
+            </div>
+          </div>
+          <div class="scroll-anchor" id="scrollAnchor"></div>
+        </div>
+
+        <footer class="transcript-foot">
+          <div class="foot-left">
+            <span class="latency" id="asrLatency">等待开始</span>
+            <span class="foot-sep"></span>
+            <span class="privacy-inline">音频只在本机处理</span>
+          </div>
+          <button class="link subtle" id="btnClear">清空本次记录</button>
+        </footer>
+      </section>
+
+      <aside class="panel coach-panel">
+        <header class="panel-head">
+          <div>
+            <div class="section-kicker">SAY IT LIKE THIS</div>
+            <h2>你可以这样回答</h2>
+          </div>
+          <div class="coach-head-actions">
+            <button class="btn btn-tiny stuck-trigger" id="btnStuck" title="根据你刚说的话，给你可以接着说的句子">我卡住了</button>
+            <button class="btn btn-tiny" id="btnRefresh" title="换一批回答（快捷键 R）">换一批 <kbd>R</kbd></button>
+          </div>
+        </header>
+
+        <div class="coach-scroll" id="coachScroll">
+          <div id="continuationPanel" class="continuation-panel hidden">
+            <div class="continuation-head">
+              <div>
+                <div class="continuation-title">帮你接下去</div>
+                <div class="continuation-hint" id="continuationHint"></div>
+              </div>
+              <button class="link subtle" id="btnContinuationRefresh">再来一组</button>
+            </div>
+            <div id="continuationBody" class="continuation-body"></div>
+          </div>
+          <div id="suggestionBody" class="suggestion-body">
+            <div class="coach-empty" id="coachEmpty">
+              <div class="coach-empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8M8 13h5"/></svg>
+              </div>
+              <h3>回答会出现在这里</h3>
+              <p>对方说完一句后，这里会给出 1–4 个可以直接念的回答（默认 2 个），下面附中文翻译。</p>
+              <button class="btn btn-ghost btn-small" id="btnOpeningEmpty">先给我一句开场白</button>
+            </div>
+          </div>
+        </div>
+
+        <footer class="coach-foot">
+          <span id="suggestionMeta">等待对方说话…</span>
+          <div class="foot-actions">
+            <button class="link subtle" id="btnOpening">生成开场白</button>
+          </div>
+        </footer>
+      </aside>
+
+      <aside class="panel meeting-panel hidden" id="meetingPanel">
+        <header class="panel-head">
+          <div>
+            <div class="section-kicker">MEETING NOTES</div>
+            <h2>会议纪要</h2>
+          </div>
+          <div class="live-meta">
+            <button class="btn btn-tiny" id="btnGenerateNotes" title="根据当前转录生成纪要">生成纪要</button>
+          </div>
+        </header>
+        <div class="meeting-scroll" id="meetingScroll">
+          <div class="meeting-empty" id="meetingNotesEmpty">
+            <div class="coach-empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h3"/></svg>
+            </div>
+            <h3>会议纪要将出现在这里</h3>
+            <p>开始记录后，停止时自动生成摘要、关键讨论、决定和待办；也可以随时点「生成纪要」。</p>
+          </div>
+          <div id="meetingNotesBody"></div>
+        </div>
+        <footer class="coach-foot">
+          <span id="meetingNotesMeta">等待会议内容…</span>
+          <div class="foot-actions">
+            <button class="link subtle" id="btnExportNotes">导出 Markdown</button>
+          </div>
+        </footer>
+      </aside>
+    </main>
+
+    <section class="feature-placeholder hidden" id="featurePlaceholder">
+      <div class="voice-page">
+        <div class="voice-hero">
+          <div class="placeholder-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></svg>
+          </div>
+          <div class="section-kicker" id="placeholderKicker">GLOBAL DICTATION</div>
+          <h2 id="placeholderTitle">语音输入</h2>
+          <p id="placeholderText">在任意应用的输入框里按快捷键开始录音，校对后再回到刚才的输入框。</p>
+          <div class="voice-dashboard" id="voiceDashboard">
+            <div class="voice-hotkey" id="voiceHotkeyText">Ctrl + Alt + Space</div>
+            <div class="voice-status" id="voiceStatusText">待机 · 按快捷键开始</div>
+            <div class="voice-actions">
+              <button type="button" class="btn btn-primary" id="btnVoiceStart">开始语音输入</button>
+              <button type="button" class="btn btn-ghost" id="btnVoiceCancel">取消</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="voice-grid">
+          <section class="voice-card">
+            <header class="voice-card-head">
+              <div>
+                <div class="section-kicker">VOICE VOCABULARY</div>
+                <h3>语音词库</h3>
+              </div>
+              <button type="button" class="btn btn-tiny" id="btnEditVoiceVocabulary">编辑词库</button>
+            </header>
+            <div class="voice-card-body">
+              <div class="voice-card-meta" id="voiceVocabularyMeta">还没有词库</div>
+              <div class="voice-vocab-chips" id="voiceVocabularyPreview"></div>
+              <p class="voice-card-hint">专名、公司名、技术术语和反复听错的词；一行一个，支持「错词=正确词」。</p>
+            </div>
+          </section>
+
+          <section class="voice-card">
+            <header class="voice-card-head">
+              <div>
+                <div class="section-kicker">RECENT DICTATION</div>
+                <h3>最近输入</h3>
+              </div>
+              <button type="button" class="btn btn-tiny" id="btnClearVoiceHistory">清空</button>
+            </header>
+            <div class="voice-card-body voice-history-body" id="voiceHistoryList"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <footer class="app-foot">
+      <span id="footHint">按 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> 复制对应回答 · <kbd>R</kbd> 换一批</span>
+      <span class="app-foot-right">本地运行 · 不上传音频 · 建议佩戴耳机</span>
+    </footer>
+  </div>
+
+  <!-- Preset dialog -->
+  <dialog class="modal" id="profileDialog">
+    <form method="dialog" class="modal-card" id="profileForm">
+      <header class="modal-head">
+        <div>
+          <div class="section-kicker">YOUR CONTEXT</div>
+          <h2>我的预设</h2>
+          <p>这些信息会进入每一次回答建议。写得越具体，回答越像你本人。</p>
+        </div>
+        <button type="button" class="icon-btn" id="btnCloseProfile" aria-label="关闭">✕</button>
+      </header>
+      <div class="modal-body">
+        <div class="form-grid">
+          <label class="field">
+            <span>你的称呼</span>
+            <input name="name" type="text" maxlength="80" placeholder="例如：林哲 / Alex">
+          </label>
+          <label class="field">
+            <span>职业 / 身份</span>
+            <input name="job" type="text" maxlength="200" placeholder="例如：SaaS 产品经理，做了 5 年 B 端产品">
+          </label>
+          <label class="field">
+            <span>所在城市</span>
+            <input name="city" type="text" maxlength="80" placeholder="例如：上海">
+          </label>
+          <label class="field">
+            <span>对方是谁 / 你们的关系</span>
+            <input name="relationship" type="text" maxlength="300" placeholder="例如：潜在客户，第一次正式通话；朋友介绍">
+          </label>
+          <label class="field span-2">
+            <span>你的性格</span>
+            <textarea name="personality" rows="2" maxlength="1200" placeholder="例如：偏内向，但聊到专业话题会很放松；说话直接，不喜欢客套；幽默感偏冷。"></textarea>
+          </label>
+          <label class="field span-2">
+            <span>兴趣爱好</span>
+            <textarea name="hobbies" rows="2" maxlength="1200" placeholder="例如：周末骑行、做手冲咖啡、看科幻小说；最近在学西班牙语。"></textarea>
+          </label>
+          <label class="field span-2">
+            <span>这次通话的目的</span>
+            <textarea name="goal" rows="2" maxlength="1500" placeholder="例如：了解对方团队的真实需求，争取下周发一份方案；同时希望建立轻松、可信的第一印象。"></textarea>
+          </label>
+          <label class="field span-2">
+            <span>对方的背景 / 性格</span>
+            <textarea name="other_person" rows="2" maxlength="1500" placeholder="例如：对方是美国总部的运营负责人，语速快，喜欢直接给反馈；有两个孩子，常聊户外运动。"></textarea>
+          </label>
+          <label class="field">
+            <span>你的外语水平</span>
+            <select name="english_level">
+              <option value="beginner">基础：能说简单句，需要短句</option>
+              <option value="intermediate" selected>日常：能对话，偶尔卡壳</option>
+              <option value="advanced">流利：能讨论复杂话题</option>
+              <option value="native">接近母语：自然口语</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>希望的语气</span>
+            <select name="tone">
+              <option value="friendly" selected>自然友好</option>
+              <option value="professional">专业稳重</option>
+              <option value="casual">轻松幽默</option>
+              <option value="direct">真诚直接</option>
+            </select>
+          </label>
+          <label class="field span-2">
+            <span>可以提到的关键事实 / 例子（很有用）</span>
+            <textarea name="key_facts" rows="2" maxlength="2000" placeholder="例如：这次方案源于客服工单里大量“不会设置”的反馈；我们访谈了 12 个新用户；我自己刚接手时也卡在第一步。"></textarea>
+          </label>
+          <label class="field span-2">
+            <span>其他要求 / 想避开的话题</span>
+            <textarea name="notes" rows="2" maxlength="1500" placeholder="例如：不要过度承诺交付时间；不要提上一份工作的离职原因；如果对方问价格，先说需要结合范围评估。"></textarea>
+          </label>
+          <label class="field span-2">
+            <span>你常用的表达 / 口头禅（可选）</span>
+            <input name="phrases" type="text" maxlength="500" placeholder="例如：To be honest... / Let me think out loud...">
+          </label>
+        </div>
+        <div class="form-note">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          这些内容只保存在本机 <code>data/profile.json</code>，不会上传。翻译和回答由本机模型生成。
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <span class="autosave-note" id="profileSaveState">填写后会自动保存到本机</span>
+        <button type="button" class="btn btn-ghost" id="btnCancelProfile">关闭</button>
+        <button type="submit" class="btn btn-primary" id="btnSaveProfile">保存并使用</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Settings dialog -->
+  <dialog class="modal" id="settingsDialog">
+    <form method="dialog" class="modal-card" id="settingsForm">
+      <header class="modal-head">
+        <div>
+          <div class="section-kicker">SETUP</div>
+          <h2>设置</h2>
+          <p>选对「系统声音」设备，是能听见对方的关键。设备改动在下次开始通话时生效。</p>
+        </div>
+        <button type="button" class="icon-btn" id="btnCloseSettings" aria-label="关闭">✕</button>
+      </header>
+      <div class="settings-tabs" id="settingsTabs" role="tablist" aria-label="设置分类">
+        <button type="button" data-settings-tab="common" role="tab">全局设置</button>
+        <button type="button" data-settings-tab="model" role="tab">模型（全局）</button>
+        <span class="settings-tab-sep" aria-hidden="true"></span>
+        <button type="button" data-settings-tab="call" role="tab">通话副驾</button>
+        <button type="button" data-settings-tab="translate" role="tab">听读翻译</button>
+        <button type="button" data-settings-tab="voice" role="tab">语音输入</button>
+        <button type="button" data-settings-tab="meeting" role="tab">会议纪要</button>
+      </div>
+      <div class="settings-scope-hint" id="settingsScopeHint"></div>
+      <div class="modal-body">
+        <div class="settings-section" data-settings-tab="common">
+          <div class="settings-title">
+            <h3>运行环境</h3>
+            <button type="button" class="btn btn-tiny" id="btnApplyHardware">重新检测并应用</button>
+          </div>
+          <div class="device-hint" id="hardwareSummary">正在检测 CPU / 显卡 / 内存…</div>
+          <div class="device-hint" id="hardwareHint"></div>
+          <label class="check">
+            <input type="checkbox" id="setHardwareAuto" checked>
+            <span><b>根据硬件自动调整运行配置</b><small>换电脑时自动选择 CUDA / Vulkan 核显 / CPU，并切换模型和语音识别设备</small></span>
+          </label>
+        </div>
+
+        <div class="settings-section" data-settings-tab="common">
+          <div class="settings-title">
+            <h3>音频来源</h3>
+            <button type="button" class="btn btn-tiny" id="btnRefreshDevices">刷新设备</button>
+          </div>
+          <div class="form-grid">
+            <label class="field span-2">
+              <span>系统声音（对方）— 选扬声器 / 耳机的 Loopback</span>
+              <select id="setOtherDevice"></select>
+            </label>
+            <label class="field span-2">
+              <span>麦克风（我）</span>
+              <select id="setMicDevice"></select>
+            </label>
+          </div>
+          <div class="device-hint" id="deviceHint">正在读取音频设备…</div>
+          <div class="device-hint global-model-note">
+            回答模型：<b id="globalModelLabel">本地 Qwen3.5-9B</b> · 对所有工作区生效
+            <button type="button" class="link subtle" id="btnOpenModelTab">更改</button>
+          </div>
+        </div>
+
+        <div class="settings-section" data-settings-tab="common">
+          <h3>识别与翻译</h3>
+          <div class="check-grid">
+            <label class="check"><input type="checkbox" id="setTranslate" checked><span><b>附加译文</b><small>听读翻译使用所选目标语言；通话/会议使用中文</small></span></label>
+            <label class="check"><input type="checkbox" id="setPartial" checked><span><b>边说边显示</b><small>说话过程中显示临时识别文字</small></span></label>
+            <label class="check"><input type="checkbox" id="setSaveTranscript" checked><span><b>保存文字记录</b><small>仅保存文字到本机，不保存录音</small></span></label>
+            <label class="check"><input type="checkbox" id="setRestoreLastMode" checked><span><b>启动时恢复上次工作区</b><small>例如上次停在会议纪要，下次启动直接回到会议纪要</small></span></label>
+            <label class="check"><input type="checkbox" id="setStartWithWindows"><span><b>开机自动启动</b><small>登录 Windows 后自动启动托盘，不弹控制台</small></span></label>
+          </div>
+          <div class="form-grid compact">
+            <label class="field span-2">
+              <span>语音识别模型（自动扫描 models/）</span>
+              <select id="setAsrModel"></select>
+              <small class="field-note">修改后下次启动生效；CPU/核显平台建议 Small 或 Medium。</small>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-section" data-settings-tab="call">
+          <h3>通话副驾</h3>
+          <div class="check-grid">
+            <label class="check"><input type="checkbox" id="setAutoSuggest" checked><span><b>自动生成回答</b><small>对方停顿后自动刷新建议</small></span></label>
+            <label class="check"><input type="checkbox" id="setCallAutoSummary" checked><span><b>结束后自动总结</b><small>停止通话后生成问答复盘和英语反馈</small></span></label>
+            <label class="check span-2"><input type="checkbox" id="setEchoGuard" checked><span><b>外放回声抑制</b><small>对方说话时暂停麦克风，避免把喇叭声当成「我」；戴耳机时无影响</small></span></label>
+          </div>
+          <div class="form-grid compact">
+            <label class="field span-2">
+              <span>通话识别语言</span>
+              <select id="setCallAsrLanguage">
+                <option value="zh">中文（简体）</option>
+                <option value="en">英语（English）</option>
+                <option value="ja">日语（日本語）</option>
+                <option value="ko">韩语（한국어）</option>
+                <option value="auto">自动检测（其他语言）</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>每次给几个回答</span>
+              <select id="setSuggestCount">
+                <option value="1">1 个（最快）</option>
+                <option value="2" selected>2 个（推荐，平衡）</option>
+                <option value="3">3 个（更慢）</option>
+                <option value="4">4 个（最慢）</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>对方停顿多久算一句</span>
+              <select id="setCallSilenceMs">
+                <option value="450">0.45 秒（更快，容易截断）</option>
+                <option value="650">0.65 秒</option>
+                <option value="750" selected>0.75 秒（推荐）</option>
+                <option value="1000">1.0 秒（更稳）</option>
+                <option value="1200">1.2 秒（嘈杂环境）</option>
+              </select>
+            </label>
+            <label class="field span-2">
+              <span>通话场景词库（每行一个，错误=正确）</span>
+              <textarea id="setCallVocabulary" rows="4" maxlength="8000" placeholder="Huawei Cloud Core Network&#10;cutover&#10;handover&#10;割接=cutover"></textarea>
+              <small class="field-note">用于本次通话的 ASR 提示和精确替换。只放公司、项目、人名、技术术语；换场景时改这里。</small>
+            </label>
+            <label class="field">
+              <span>长段落等待（连续多句时）</span>
+              <select id="setLongPassageDelay">
+                <option value="1200">1.2 秒（最跟手）</option>
+                <option value="1800">1.8 秒</option>
+                <option value="2800" selected>2.8 秒（推荐）</option>
+                <option value="3500">3.5 秒（更耐心）</option>
+                <option value="5000">5.0 秒（等较长停顿）</option>
+              </select>
+            </label>
+            <label class="field span-2">
+              <span>麦克风增益 <output id="setMicGainValue">1.0×</output></span>
+              <input type="range" id="setMicGain" min="0.8" max="2.5" step="0.1" value="1">
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-section" data-settings-tab="model">
+          <div class="settings-title">
+            <h3>回答引擎（全局）</h3>
+            <span class="engine-note">对所有工作区生效</span>
+          </div>
+          <div class="form-grid compact">
+            <label class="field span-2">
+              <span>使用哪个模型回答</span>
+              <select id="setLlmProvider">
+                <option value="local">本地模型（离线）</option>
+                <option value="deepseek">DeepSeek 官方 API（专用，deepseek-flash）</option>
+                <option value="openai">其他 OpenAI 兼容 API（OpenAI / OpenRouter / 硅基流动等）</option>
+              </select>
+            </label>
+          </div>
+          <div class="device-hint" id="providerHint">本地模型：音频和文字都不上传，离线可用。</div>
+          <div id="apiFields" class="hidden">
+            <div id="deepseekCard" class="provider-card hidden">
+              <div class="provider-card-copy">
+                <b>DeepSeek 官方专用接口</b>
+                <span>地址、模型和关闭思考都已预填，通常只需要填 API Key。</span>
+              </div>
+              <a class="provider-link" href="https://platform.deepseek.com/api_keys" target="_blank" rel="noreferrer">获取 API Key ↗</a>
+              <button type="button" class="btn btn-tiny" id="btnResetDeepSeek">恢复默认</button>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span id="apiBaseLabel">API 地址</span>
+                <input type="text" id="setApiBase" placeholder="https://api.deepseek.com" autocomplete="off">
+              </label>
+              <label class="field">
+                <span id="apiModelLabel">模型名</span>
+                <input type="text" id="setApiModel" placeholder="deepseek-flash" autocomplete="off">
+              </label>
+              <label class="field span-2">
+                <span>API Key</span>
+                <input type="password" id="setApiKey" placeholder="sk-...（只保存在本机）" autocomplete="new-password">
+                <small class="field-note" id="apiKeyStatus"></small>
+              </label>
+            </div>
+            <div class="api-local-row">
+              <span>API Key 使用 Windows DPAPI 加密，只保存在当前电脑；复制项目或迁移到新电脑后必须重新填写。</span>
+              <button type="button" class="btn btn-tiny" id="btnClearApiProfile">清除本机 API 配置</button>
+            </div>
+            <label class="check api-thinking" id="apiThinkingLabel">
+              <input type="checkbox" id="setApiDisableThinking" checked>
+              <span><b>关闭深度思考</b><small>DeepSeek 默认开启思考；勾选后发送 thinking=disabled，直接回答</small></span>
+            </label>
+            <div class="device-hint" id="apiHint">使用 API 时，对话文本会发送给该服务商。DeepSeek 默认会用 deepseek-flash，并关闭思考模式。</div>
+          </div>
+        </div>
+
+        <div class="settings-section" data-settings-tab="translate">
+          <div class="settings-title">
+            <h3>字幕预设</h3>
+            <span class="engine-note" id="mediaPresetState">自动保存到本机 · 仅听读翻译模式使用</span>
+          </div>
+          <div class="form-grid compact">
+            <label class="field span-2">
+              <span>字幕识别语言</span>
+              <select id="setTranslateAsrLanguage">
+                <option value="zh">中文（简体）</option>
+                <option value="en">英语（English）</option>
+                <option value="ja">日语（日本語）</option>
+                <option value="ko">韩语（한국어）</option>
+                <option value="auto">自动检测（其他语言）</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>字幕翻译目标语言</span>
+              <select id="setTranslateTargetLanguage">
+                <option value="zh">中文（简体）</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>内容类型</span>
+              <select id="setMediaType">
+                <option value="series">电视剧 / 剧集</option>
+                <option value="movie">电影</option>
+                <option value="anime">动漫 / 动画</option>
+                <option value="documentary">纪录片 / 课程</option>
+                <option value="other">其他</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>剧名 / 节目名</span>
+              <input type="text" id="setMediaTitle" maxlength="300" placeholder="例如：The Bear / 进击的巨人">
+            </label>
+            <label class="field span-2">
+              <span>剧情、角色名、术语和翻译偏好</span>
+              <textarea id="setMediaContext" rows="3" maxlength="4000" placeholder="例如：主角叫 Carmy，餐厅叫 The Bear；术语写成 Nen=念；保留 family meal 等餐饮术语；整体语气焦虑、快节奏；人名统一用英文。"></textarea>
+            </label>
+            <label class="field">
+              <span>字幕翻译风格</span>
+              <select id="setSubtitleStyle">
+                <option value="natural">自然口语（推荐）</option>
+                <option value="literal">贴近原文</option>
+                <option value="terminology">保留术语 / 人名一致</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>字幕停顿（越短越快）</span>
+              <select id="setSubtitleSilence">
+                <option value="300">0.30 秒（最快）</option>
+                <option value="450">0.45 秒（推荐）</option>
+                <option value="650">0.65 秒</option>
+                <option value="800">0.80 秒</option>
+              </select>
+            </label>
+          </div>
+          <label class="check api-thinking">
+            <input type="checkbox" id="setOverlayEnabled" checked>
+            <span><b>自动显示悬浮字幕</b><small>全屏看剧时在屏幕底部显示文字，无黑色底条；没有字幕时自动隐藏</small></span>
+          </label>
+        </div>
+
+        <div class="settings-section" data-settings-tab="model">
+          <div class="settings-title">
+            <h3>本地模型</h3>
+            <div class="settings-title-actions">
+              <button type="button" class="btn btn-tiny" id="btnRefreshModels">刷新模型列表</button>
+              <button type="button" class="btn btn-tiny" id="btnTestLlm">测试模型</button>
+            </div>
+          </div>
+          <div class="form-grid compact local-model-row">
+            <label class="field span-2">
+              <span>本地模型版本（自动扫描 models/llm）</span>
+              <select id="setLocalModel"></select>
+            </label>
+          </div>
+          <div class="device-hint">模型列表来自本机模型目录；把新的 .gguf 放进 models/llm 后点「刷新模型列表」即可。小模型更适合 Intel/AMD 核显和纯 CPU。</div>
+          <div class="model-status" id="modelStatus">正在检查…</div>
+          <pre class="test-result hidden" id="llmTestResult"></pre>
+
+          <div class="model-manager">
+            <div class="settings-title-actions">
+              <div>
+                <h3>模型管理</h3>
+                <small id="modelManagerSummary">正在读取模型目录…</small>
+              </div>
+              <button type="button" class="btn btn-tiny" id="btnRefreshModelManagement">刷新状态</button>
+            </div>
+            <div class="model-manager-list" id="modelManagerList"></div>
+            <details class="model-add">
+              <summary>添加自定义模型</summary>
+              <div class="form-grid compact">
+                <label class="field">
+                  <span>类型</span>
+                  <select id="setCustomModelKind">
+                    <option value="llm">本地 Qwen / GGUF</option>
+                    <option value="whisper">Whisper 目录</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>显示名称</span>
+                  <input type="text" id="setCustomModelLabel" placeholder="例如 Qwen2.5-0.5B" autocomplete="off">
+                </label>
+                <label class="field span-2">
+                  <span>文件 / 目录路径</span>
+                  <input type="text" id="setCustomModelPath" placeholder="models/llm/xxx.gguf 或 faster-whisper-tiny" autocomplete="off">
+                  <small class="field-note">相对路径按模型类型解析；未放入文件时会显示「未下载」。</small>
+                </label>
+                <label class="field span-2">
+                  <span>来源 / 备注（可选）</span>
+                  <input type="text" id="setCustomModelSource" placeholder="ModelScope、HuggingFace 或内部共享路径" autocomplete="off">
+                </label>
+              </div>
+              <button type="button" class="btn btn-tiny" id="btnAddCustomModel">加入列表</button>
+            </details>
+          </div>
+        </div>
+
+        <div class="settings-section" data-settings-tab="voice">
+          <h3>语音输入</h3>
+          <div class="form-grid compact">
+            <label class="field">
+              <span>触发方式</span>
+              <select id="setVoiceTriggerMode">
+                <option value="hotkey">只用快捷键</option>
+                <option value="focus">自动监听输入框（语音输入工作区）</option>
+                <option value="both">快捷键 + 自动监听</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>全局快捷键</span>
+              <select id="setVoiceHotkey">
+                <option value="ctrl+alt+space">Ctrl + Alt + Space（推荐）</option>
+                <option value="ctrl+shift+space">Ctrl + Shift + Space</option>
+                <option value="alt+space">Alt + Space</option>
+                <option value="f9">F9</option>
+                <option value="f10">F10</option>
+              </select>
+            </label>
+            <label class="field span-2">
+              <span>快捷键行为</span>
+              <select id="setVoiceHotkeyHold">
+                <option value="false">按一下开始，再按一下结束（切换）</option>
+                <option value="true">按住说话，松开结束</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>输入语言</span>
+              <select id="setVoiceInputLanguage">
+                <option value="zh">中文（简体，默认）</option>
+                <option value="yue">粤语（Cantonese，实验性）</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+                <option value="auto">自动检测</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>目标语言</span>
+              <select id="setVoiceTargetLanguage">
+                <option value="none">不翻译，只转写</option>
+                <option value="zh">中文（简体）</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>关闭浮窗时插入</span>
+              <select id="setVoiceNoOverlayInsert">
+                <option value="translation">译文（默认）</option>
+                <option value="original">原文</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>最长录音</span>
+              <select id="setVoiceMaxSeconds">
+                <option value="45">45 秒</option>
+                <option value="90">90 秒</option>
+                <option value="120">120 秒</option>
+                <option value="180">180 秒</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>自动停止静音</span>
+              <select id="setVoiceFocusSilence">
+                <option value="800">0.8 秒（更快）</option>
+                <option value="1200">1.2 秒（推荐）</option>
+                <option value="1800">1.8 秒（更耐心）</option>
+                <option value="2500">2.5 秒</option>
+              </select>
+            </label>
+            <label class="field span-2">
+              <span>监听兼容窗口标题</span>
+              <input type="text" id="setVoiceFocusTitles" placeholder="DeepSeek Harness" autocomplete="off">
+            </label>
+          </div>
+          <div class="check-grid">
+            <label class="check"><input type="checkbox" id="setVoiceOverlayEnabled" checked><span><b>显示校对浮窗</b><small>关闭后识别完直接插入，不再显示校对窗口</small></span></label>
+            <label class="check"><input type="checkbox" id="setVoiceFocusSkipFullscreen" checked><span><b>全屏时不自动监听</b><small>避免在游戏中误开麦克风；需要时仍可用快捷键</small></span></label>
+            <label class="check"><input type="checkbox" id="setVoiceAutoPunctuation" checked><span><b>自动补标点</b><small>Whisper 没给出结尾标点时补「。」或「.」；不会改写句子内容</small></span></label>
+            <label class="check"><input type="checkbox" id="setVoiceAutoProofread" checked><span><b>自动文字校对</b><small>用当前模型修正明显同音字/错别字，不改变原意；会增加一点生成时间</small></span></label>
+          </div>
+          <div class="form-grid compact">
+            <label class="field span-2">
+              <span>语音词库（每行一个，错误=正确）</span>
+              <textarea id="setVoiceVocabulary" rows="5" maxlength="8000" placeholder="Carmy&#10;Lan.Assistant&#10;交对=校对"></textarea>
+              <small class="field-note">规范词用于 Whisper 识别偏置和自动校对；别名写成「错词=正确词」。只放专名、术语和反复出错的词。</small>
+            </label>
+          </div>
+          <div class="device-hint">自动监听只在「语音输入」工作区生效，且只识别常见输入框（记事本、浏览器、聊天输入框等）。Electron/网页输入框不会暴露原生焦点，可在「监听兼容窗口标题」里填窗口标题关键字，例如 DeepSeek Harness；多个用逗号分隔。游戏内自绘聊天框通常不会被识别；全屏游戏默认跳过。关闭校对浮窗后，会直接把原文或译文插入刚才的输入框。</div>
+        </div>
+
+        <div class="settings-section" data-settings-tab="meeting">
+          <h3>会议纪要</h3>
+          <div class="check-grid">
+            <label class="check"><input type="checkbox" id="setMeetingAutoNotes" checked><span><b>停止后自动生成纪要</b><small>记录结束后自动整理摘要、决定和待办</small></span></label>
+            <label class="field">
+              <span>纪要语言</span>
+              <select id="setMeetingNotesLanguage">
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+          </div>
+          <label class="field">
+            <span>会议识别语言</span>
+            <select id="setMeetingAsrLanguage">
+              <option value="zh" selected>中文（简体）</option>
+              <option value="en">英语（English）</option>
+              <option value="ja">日语（日本語）</option>
+              <option value="ko">韩语（한국어）</option>
+              <option value="auto">自动检测（其他语言）</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>会议背景 / 参会人 / 关注点（可选）</span>
+            <textarea id="setMeetingContext" rows="3" maxlength="4000" placeholder="例如：周会，参会人 Alice、Bob；重点跟进上线时间和风险；不要记录闲聊。"></textarea>
+          </label>
+          <div class="device-hint">仅使用会议转录和这里的背景生成纪要，不会编造未出现的负责人或日期。</div>
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <span class="autosave-note settings-save-status" id="settingsSaveStatus" aria-live="polite"></span>
+        <button type="button" class="btn btn-ghost" id="btnCancelSettings">取消</button>
+        <button type="submit" class="btn btn-primary" id="btnSaveSettings">保存设置</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Subtitle editor -->
+  <dialog class="modal" id="subtitleDialog">
+    <div class="modal-card subtitle-editor-card">
+      <header class="modal-head">
+        <div>
+          <div class="section-kicker">SUBTITLE EDITOR</div>
+          <h2>校对字幕</h2>
+          <p>修改原文或译文，保存后页面、悬浮字幕和导出文件都会使用修改后的版本。</p>
+        </div>
+        <button type="button" class="icon-btn" id="btnCloseSubtitle" aria-label="关闭">✕</button>
+      </header>
+      <div class="modal-body" id="subtitleEditorBody"></div>
+      <footer class="modal-foot">
+        <span class="autosave-note" id="subtitleEditorState">只修改本次听读的字幕，不会改动预设</span>
+        <button type="button" class="btn btn-ghost" id="btnCancelSubtitle">关闭</button>
+        <button type="button" class="btn btn-primary" id="btnSaveSubtitles">保存字幕</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <dialog class="modal" id="callSummaryDialog">
+    <div class="modal-card subtitle-editor-card">
+      <header class="modal-head">
+        <div>
+          <div class="section-kicker">CALL REVIEW</div>
+          <h2>通话总结</h2>
+          <p>问答复盘、可改进表达和自我介绍反馈；只依据本次通话转录生成。</p>
+        </div>
+        <button type="button" class="icon-btn" id="btnCloseCallSummary" aria-label="关闭">✕</button>
+      </header>
+      <div class="modal-body" id="callSummaryBody"></div>
+      <footer class="modal-foot">
+        <span class="autosave-note" id="callSummaryMeta">等待通话内容…</span>
+        <button type="button" class="btn btn-ghost" id="btnCallSummaryRefresh">重新生成</button>
+        <button type="button" class="btn btn-ghost" id="btnExportCallSummary">导出 Markdown</button>
+        <button type="button" class="btn btn-primary" id="btnCloseCallSummaryFoot">关闭</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+
+  <script src="/static/app.js?v=60"></script>
+</body>
+</html>

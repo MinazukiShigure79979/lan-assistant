@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>首次设置 · Lan.Assistant</title>
+  <link rel="stylesheet" href="/static/setup.css?v=1">
+</head>
+<body>
+  <main class="setup-shell">
+    <header class="setup-brand">
+      <div class="brand-mark">L</div>
+      <div>
+        <div class="brand-name">Lan.Assistant</div>
+        <div class="brand-sub">首次启动设置</div>
+      </div>
+      <span class="setup-badge">LOCAL FIRST</span>
+    </header>
+
+    <ol class="setup-steps" aria-label="安装进度">
+      <li id="stepOllama" class="active"><i>1</i><span>安装 Ollama</span></li>
+      <li id="stepModels"><i>2</i><span>下载模型</span></li>
+      <li id="stepStart"><i>3</i><span>启动主界面</span></li>
+    </ol>
+
+    <section id="loadingPanel" class="setup-panel">
+      <div class="loading-orb"></div>
+      <p>正在检查本机环境…</p>
+    </section>
+
+    <section id="ollamaPanel" class="setup-panel hidden">
+      <div class="section-kicker">RUNTIME</div>
+      <h1>准备本地运行环境</h1>
+      <p class="lead">Lan.Assistant 不把 Ollama 打包进安装包。首次启动会自动下载便携版，放在当前 Windows 用户的本地目录，不需要管理员权限。</p>
+      <div class="install-box">
+        <div class="install-row">
+          <span>Ollama 便携版</span>
+          <b id="ollamaState">准备下载…</b>
+        </div>
+        <div class="bar"><i id="ollamaBar"></i></div>
+        <div class="install-note" id="ollamaMessage">下载约 1.6 GB，请保持网络连接。</div>
+      </div>
+      <div class="error-box hidden" id="ollamaError"></div>
+      <button id="retryOllama" class="btn btn-ghost hidden" type="button">重试安装</button>
+    </section>
+
+    <section id="modelsPanel" class="setup-panel hidden">
+      <div class="section-kicker">MODEL SETUP</div>
+      <h1>选择要下载的模型</h1>
+      <p class="lead">程序已根据这台电脑的配置勾选推荐项。至少选择一个语音识别模型和一个回答模型；下载完成后才会启动主服务。</p>
+      <div class="hardware-line" id="hardwareLine"></div>
+
+      <div class="model-columns">
+        <div class="model-column">
+          <div class="model-column-head">
+            <div>
+              <span class="mini-kicker">SPEECH TO TEXT</span>
+              <h2>语音识别</h2>
+            </div>
+            <span id="whisperCount" class="count"></span>
+          </div>
+          <div id="whisperList" class="model-list"></div>
+        </div>
+        <div class="model-column">
+          <div class="model-column-head">
+            <div>
+              <span class="mini-kicker">LOCAL LLM</span>
+              <h2>回答模型</h2>
+            </div>
+            <span id="llmCount" class="count"></span>
+          </div>
+          <div id="llmList" class="model-list"></div>
+        </div>
+      </div>
+
+      <div class="download-actions">
+        <div class="download-summary">
+          <b id="downloadSummary">请选择模型</b>
+          <span id="downloadHint">下载过程中可以停留在此页面。</span>
+        </div>
+        <button id="downloadBtn" class="btn btn-primary" type="button">下载并启动</button>
+      </div>
+
+      <div id="downloadProgress" class="download-progress hidden">
+        <div class="bar"><i id="totalBar"></i></div>
+        <div id="downloadMessage" class="install-note"></div>
+        <div id="downloadList" class="download-list"></div>
+      </div>
+      <div class="error-box hidden" id="downloadError"></div>
+    </section>
+
+    <section id="donePanel" class="setup-panel hidden">
+      <div class="done-mark">✓</div>
+      <h1>准备完成</h1>
+      <p class="lead">模型已就绪，正在启动主界面…</p>
+    </section>
+
+    <footer class="setup-foot">
+      <span>模型和 Ollama 不随安装包分发 · 下载内容只保存在本机</span>
+      <span id="setupDisk"></span>
+    </footer>
+  </main>
+  <script src="/static/setup.js?v=1"></script>
+</body>
+</html>

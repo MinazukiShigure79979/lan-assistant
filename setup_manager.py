@@ -1,0 +1,617 @@
+"""First-run provisioning for Lan.Assistant.
+
+The installer is intentionally code-only: Ollama and model weights are not
+bundled.  On the first launch this module:
+
+1. downloads the portable Ollama runtime into %LOCALAPPDATA%,
+2. lets the user pick at least one Whisper and one GGUF model (the hardware
+   recommendation is selected by default),
+3. downloads the selected models,
+4. applies the choices and only then starts the main ASR/LLM workers.
+
+A completed marker lives in data/setup.json.  Existing developer installs that
+already contain Ollama + models are marked complete automatically.
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import threading
+import time
+import urllib.request
+import zipfile
+from pathlib import Path
+from typing import Any, Optional
+
+import config
+import hardware
+import models
+
+SETUP_PATH = config.DATA_DIR / "setup.json"
+OLLAMA_ZIP_URL = "https://ollama.com/download/ollama-windows-amd64.zip"
+HF_ENDPOINT = os.environ.get("LAN_HF_ENDPOINT", "https://hf-mirror.com")
+
+WHISPER_OPTIONS: list[dict[str, Any]] = [
+    {
+        "id": "large-v3-turbo",
+        "dir": "faster-whisper-large-v3-turbo",
+        "label": "Whisper Large v3 Turbo",
+        "desc": "最准确，适合 NVIDIA 显卡；会议和口音较重时更稳。",
+        "repo": "deepdml/faster-whisper-large-v3-turbo-ct2",
+        "size_bytes": 1_617_884_929,
+        "size": "1.5 GB",
+    },
+    {
+        "id": "small",
+        "dir": "faster-whisper-small",
+        "label": "Whisper Small",
+        "desc": "速度和准确率平衡，CPU / 核显推荐。",
+        "repo": "Systran/faster-whisper-small",
+        "size_bytes": 483_546_902,
+        "size": "461 MB",
+    },
+    {
+        "id": "base",
+        "dir": "faster-whisper-base",
+        "label": "Whisper Base",
+        "desc": "下载最快、占用最小；准确率低于 Small。",
+        "repo": "Systran/faster-whisper-base",
+        "size_bytes": 145_000_000,
+        "size": "138 MB",
+    },
+    {
+        "id": "medium",
+        "dir": "faster-whisper-medium",
+        "label": "Whisper Medium",
+        "desc": "比 Small 更准，但纯 CPU 会明显变慢。",
+        "repo": "Systran/faster-whisper-medium",
+        "size_bytes": 1_530_000_000,
+        "size": "1.5 GB",
+    },
+    {
+        "id": "tiny",
+        "dir": "faster-whisper-tiny",
+        "label": "Whisper Tiny",
+        "desc": "最低配备用；只适合快速草稿。",
+        "repo": "Systran/faster-whisper-tiny",
+        "size_bytes": 75_000_000,
+        "size": "75 MB",
+    },
+]
+
+LLM_OPTIONS: list[dict[str, Any]] = [
+    {
+        "id": "qwen3.5-9b",
+        "name": "qwen3.5-copilot",
+        "file": "Qwen3.5-9B-Q4_K_M.gguf",
+        "label": "Qwen3.5-9B Q4_K_M",
+        "desc": "质量最好，适合 12 GB 以上显存的 NVIDIA 独显。",
+        "repo": "unsloth/Qwen3.5-9B-GGUF",
+        "size_bytes": 5_300_000_000,
+        "size": "5.3 GB",
+    },
+    {
+        "id": "qwen3.5-4b",
+        "name": "lan-qwen3.5-4b-q4_k_m",
+        "file": "Qwen3.5-4B-Q4_K_M.gguf",
+        "label": "Qwen3.5-4B Q4_K_M",
+        "desc": "速度和质量的平衡，适合中端独显 / 核显。",
+        "repo": "unsloth/Qwen3.5-4B-GGUF",
+        "size_bytes": 2_600_000_000,
+        "size": "2.6 GB",
+    },
+    {
+        "id": "qwen3.5-2b",
+        "name": "lan-qwen3.5-2b-q4_k_m",
+        "file": "Qwen3.5-2B-Q4_K_M.gguf",
+        "label": "Qwen3.5-2B Q4_K_M",
+        "desc": "低配机器友好，回答质量有限但够日常使用。",
+        "repo": "unsloth/Qwen3.5-2B-GGUF",
+        "size_bytes": 1_200_000_000,
+        "size": "1.2 GB",
+    },
+    {
+        "id": "qwen2.5-7b",
+        "name": "qwen-copilot",
+        "file": "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+        "label": "Qwen2.5-7B Q4_K_M",
+        "desc": "成熟稳定的备用模型，兼容性最好。",
+        "repo": "bartowski/Qwen2.5-7B-Instruct-GGUF",
+        "size_bytes": 4_400_000_000,
+        "size": "4.4 GB",
+    },
+    {
+        "id": "qwen2.5-3b",
+        "name": "lan-qwen2.5-3b-instruct-q4_k_m",
+        "file": "Qwen2.5-3B-Instruct-Q4_K_M.gguf",
+        "label": "Qwen2.5-3B Q4_K_M",
+        "desc": "小体积、较稳，适合纯 CPU。",
+        "repo": "Qwen/Qwen2.5-3B-Instruct-GGUF",
+        "size_bytes": 2_000_000_000,
+        "size": "2.0 GB",
+    },
+    {
+        "id": "qwen2.5-1.5b",
+        "name": "lan-qwen2.5-1.5b-instruct-q4_k_m",
+        "file": "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+        "label": "Qwen2.5-1.5B Q4_K_M",
+        "desc": "最低配兜底，下载和运行都快。",
+        "repo": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+        "size_bytes": 1_000_000_000,
+        "size": "1.0 GB",
+    },
+]
+
+
+def _read_setup() -> dict[str, Any]:
+    try:
+        raw = json.loads(SETUP_PATH.read_text(encoding="utf-8"))
+        return raw if isinstance(raw, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_setup(data: dict[str, Any]) -> None:
+    config.save_json(SETUP_PATH, data)
+
+
+def _has_all_models() -> bool:
+    return bool(models.whisper_catalog()) and bool(models.llm_catalog())
+
+
+class SetupManager:
+    def __init__(self, app: Any) -> None:
+        self.app = app
+        self._lock = threading.RLock()
+        self._busy = False
+        self._job: Optional[threading.Thread] = None
+        self._stage = "models"
+        self._progress = 0.0
+        self._message = ""
+        self._error = ""
+        self._installing_ollama = False
+        self._downloading = False
+        self._downloads: dict[str, dict[str, Any]] = {}
+        self._hardware: dict[str, Any] = dict(getattr(app, "hardware", {}) or {})
+        self._recommended: dict[str, str] = {}
+        self._whisper: list[dict[str, Any]] = []
+        self._llm: list[dict[str, Any]] = []
+        self._refresh_options()
+        marker = _read_setup()
+        ready = config.OLLAMA_BIN.exists() and _has_all_models()
+        if marker.get("complete") and ready:
+            self._required = False
+            self._stage = "done"
+            self._progress = 1.0
+        elif ready:
+            # Existing developer / carried installation: do not show the
+            # first-run wizard merely because the new marker is absent.
+            self._required = False
+            self._stage = "done"
+            self._progress = 1.0
+            self._write_complete()
+        else:
+            self._required = True
+            self._stage = "ollama" if not config.OLLAMA_BIN.exists() else "models"
+            self._message = "首次启动需要准备本地运行环境。"
+
+    @property
+    def required(self) -> bool:
+        return self._required
+
+    def _write_complete(self, whisper: str = "", llm: str = "") -> None:
+        try:
+            _write_setup(
+                {
+                    "complete": True,
+                    "completed_at": time.time(),
+                    "whisper": whisper,
+                    "llm": llm,
+                    "ollama": str(config.OLLAMA_BIN),
+                    "models_dir": str(config.MODELS_DIR),
+                }
+            )
+        except Exception:
+            pass
+
+    def _detect_hardware(self) -> dict[str, Any]:
+        if not self._hardware:
+            try:
+                self._hardware = hardware.detect()
+            except Exception:
+                self._hardware = {"profile": "cpu", "ram_gb": 0, "gpu_label": "", "cpu": ""}
+        profile = self._hardware
+        mode = str(profile.get("profile", "cpu") or "cpu")
+        ram = float(profile.get("ram_gb", 0) or 0)
+        if mode == "nvidia":
+            whisper_id = "large-v3-turbo"
+            llm_id = "qwen3.5-9b" if ram >= 16 else "qwen3.5-4b"
+        elif mode in ("amd_vulkan", "intel_vulkan"):
+            whisper_id = "small"
+            llm_id = "qwen3.5-4b" if ram >= 16 else "qwen3.5-2b"
+        else:
+            whisper_id = "base"
+            llm_id = "qwen2.5-1.5b" if ram and ram < 16 else "qwen2.5-3b"
+        self._recommended = {"whisper": whisper_id, "llm": llm_id}
+        return profile
+
+    def _refresh_options(self) -> None:
+        profile = self._detect_hardware()
+        w_downloaded = {item["name"] for item in models.whisper_catalog()}
+        l_downloaded = {item["name"] for item in models.llm_catalog()}
+        self._whisper = []
+        for item in WHISPER_OPTIONS:
+            row = dict(item)
+            row["downloaded"] = item["dir"] in w_downloaded
+            row["recommended"] = item["id"] == self._recommended.get("whisper")
+            self._whisper.append(row)
+        self._llm = []
+        for item in LLM_OPTIONS:
+            row = dict(item)
+            row["downloaded"] = item["name"] in l_downloaded
+            row["recommended"] = item["id"] == self._recommended.get("llm")
+            self._llm.append(row)
+
+    def public_state(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "required": self._required,
+                "complete": not self._required,
+                "stage": self._stage,
+                "progress": round(max(0.0, min(1.0, self._progress)), 4),
+                "message": self._message,
+                "error": self._error,
+                "busy": self._busy,
+                "installing_ollama": self._installing_ollama,
+                "downloading": self._downloading,
+                "ollama": {
+                    "installed": config.OLLAMA_BIN.exists(),
+                    "path": str(config.OLLAMA_BIN),
+                },
+                "hardware": self._hardware,
+                "recommended": dict(self._recommended),
+                "whisper": [dict(row) for row in self._whisper],
+                "llm": [dict(row) for row in self._llm],
+                "downloads": {key: dict(value) for key, value in self._downloads.items()},
+                "models_dir": str(config.MODELS_DIR),
+                "setup_path": str(SETUP_PATH),
+            }
+
+    def _set(self, **updates: Any) -> None:
+        with self._lock:
+            for key, value in updates.items():
+                setattr(self, key, value)
+
+    def _publish(self) -> None:
+        try:
+            self.app.bus.publish({"type": "setup", "data": self.public_state()})
+        except Exception:
+            pass
+
+    def install_ollama_async(self) -> bool:
+        with self._lock:
+            if self._busy:
+                return False
+            if config.OLLAMA_BIN.exists():
+                self._stage = "models" if not _has_all_models() else "done"
+                self._message = "Ollama 已就绪。"
+                return True
+            self._busy = True
+            self._installing_ollama = True
+            self._error = ""
+            self._stage = "ollama"
+            self._progress = 0.0
+            self._message = "正在下载 Ollama 便携版…"
+        self._job = threading.Thread(target=self._install_ollama_job, name="setup-ollama", daemon=True)
+        self._job.start()
+        self._publish()
+        return True
+
+    def _install_ollama_job(self) -> None:
+        try:
+            self._install_ollama()
+            with self._lock:
+                self._installing_ollama = False
+                self._stage = "models"
+                self._progress = 0.0
+                self._message = "Ollama 安装完成。请选择要下载的模型。"
+                self._busy = False
+            self._publish()
+        except Exception as exc:
+            with self._lock:
+                self._installing_ollama = False
+                self._busy = False
+                self._stage = "error"
+                self._error = f"Ollama 安装失败：{exc}"
+                self._message = "可以重试，或手动安装 Ollama 后点重试。"
+            self._publish()
+
+    def _install_ollama(self) -> None:
+        target_dir = config.OLLAMA_DIR
+        target_dir.mkdir(parents=True, exist_ok=True)
+        downloads = config.LOCAL_APP_DIR / "downloads"
+        downloads.mkdir(parents=True, exist_ok=True)
+        archive = downloads / "ollama-windows-amd64.zip"
+        self._set(_progress=0.0, _message="正在下载 Ollama（约 1.6 GB）…")
+        self._publish()
+        request = urllib.request.Request(
+            OLLAMA_ZIP_URL,
+            headers={"User-Agent": "Lan.Assistant-Setup/1.0"},
+        )
+        with urllib.request.urlopen(request, timeout=60) as response:
+            total = int(response.headers.get("Content-Length", "0") or 0)
+            received = 0
+            tmp = archive.with_suffix(".zip.part")
+            with tmp.open("wb") as handle:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    handle.write(chunk)
+                    received += len(chunk)
+                    if total:
+                        self._set(_progress=min(0.85, received / total * 0.85))
+                    self._publish()
+            tmp.replace(archive)
+        self._set(_progress=0.88, _message="正在解压 Ollama…")
+        self._publish()
+        temp_extract = downloads / "ollama-extract"
+        if temp_extract.exists():
+            shutil.rmtree(temp_extract, ignore_errors=True)
+        with zipfile.ZipFile(archive) as zf:
+            zf.extractall(temp_extract)
+        candidates = list(temp_extract.rglob("ollama.exe"))
+        if not candidates:
+            raise RuntimeError("下载的压缩包中没有 ollama.exe")
+        source = candidates[0].parent
+        for item in source.iterdir():
+            dest = target_dir / item.name
+            if item.is_dir():
+                if dest.exists():
+                    shutil.rmtree(dest, ignore_errors=True)
+                shutil.copytree(item, dest)
+            else:
+                shutil.copy2(item, dest)
+        if not config.OLLAMA_BIN.exists():
+            raise RuntimeError("ollama.exe 未安装到预期位置")
+        shutil.rmtree(temp_extract, ignore_errors=True)
+        self._set(_progress=0.95, _message="Ollama 已安装。")
+        self._publish()
+
+    def download_async(self, whisper_ids: list[str], llm_ids: list[str]) -> bool:
+        with self._lock:
+            if self._busy:
+                return False
+            whisper_ids = [str(value) for value in whisper_ids if value]
+            llm_ids = [str(value) for value in llm_ids if value]
+            if not whisper_ids or not llm_ids:
+                self._error = "请至少选择一个 Whisper 和一个 LLM 模型。"
+                return False
+            options_w = {item["id"]: item for item in self._whisper}
+            options_l = {item["id"]: item for item in self._llm}
+            selected_w = [options_w[item] for item in whisper_ids if item in options_w]
+            selected_l = [options_l[item] for item in llm_ids if item in options_l]
+            if not selected_w or not selected_l:
+                self._error = "模型选项无效。"
+                return False
+            self._busy = True
+            self._downloading = True
+            self._error = ""
+            self._stage = "models"
+            self._progress = 0.0
+            self._message = "准备下载模型…"
+            self._downloads = {}
+            for item in selected_w + selected_l:
+                self._downloads[item["id"]] = {
+                    "label": item["label"],
+                    "kind": "whisper" if item in selected_w else "llm",
+                    "status": "pending",
+                    "progress": 0.0,
+                    "size": item["size"],
+                }
+        self._job = threading.Thread(
+            target=self._download_job,
+            args=(selected_w, selected_l),
+            name="setup-models",
+            daemon=True,
+        )
+        self._job.start()
+        self._publish()
+        return True
+
+    def _update_download(self, item_id: str, **updates: Any) -> None:
+        with self._lock:
+            current = self._downloads.get(item_id)
+            if current is None:
+                return
+            current.update(updates)
+
+    def _download_job(self, selected_w: list[dict[str, Any]], selected_l: list[dict[str, Any]]) -> None:
+        try:
+            if not config.OLLAMA_BIN.exists():
+                with self._lock:
+                    self._installing_ollama = True
+                self._install_ollama()
+                with self._lock:
+                    self._installing_ollama = False
+            total = len(selected_w) + len(selected_l)
+            done = 0
+            for item in selected_w:
+                self._update_download(item["id"], status="downloading", progress=0.0)
+                self._set(_message=f"正在下载 {item['label']}…")
+                self._publish()
+                self._download_whisper(item)
+                self._update_download(item["id"], status="done", progress=1.0)
+                done += 1
+                self._set(_progress=done / total)
+                self._publish()
+            for item in selected_l:
+                self._update_download(item["id"], status="downloading", progress=0.0)
+                self._set(_message=f"正在下载 {item['label']}…")
+                self._publish()
+                self._download_llm(item)
+                self._update_download(item["id"], status="done", progress=1.0)
+                done += 1
+                self._set(_progress=done / total)
+                self._publish()
+            self._finish_setup(selected_w[0], selected_l[0])
+        except Exception as exc:
+            with self._lock:
+                self._downloading = False
+                self._busy = False
+                self._stage = "error"
+                self._error = f"模型下载失败：{exc}"
+                self._message = "检查网络后重试；已经下载完的文件会保留。"
+            self._publish()
+
+    def _download_whisper(self, item: dict[str, Any]) -> None:
+        target = config.MODELS_DIR / item["dir"]
+        if (target / "model.bin").exists() and (target / "config.json").exists():
+            return
+        try:
+            from huggingface_hub import snapshot_download
+        except Exception as exc:
+            raise RuntimeError("缺少 huggingface_hub，无法下载模型") from exc
+        target.mkdir(parents=True, exist_ok=True)
+        stop = threading.Event()
+        monitor = threading.Thread(
+            target=self._monitor_size,
+            args=(item["id"], target, int(item["size_bytes"]), stop),
+            name="setup-progress",
+            daemon=True,
+        )
+        monitor.start()
+        try:
+            self._hf_snapshot(item["repo"], target)
+        finally:
+            stop.set()
+        self._update_download(item["id"], progress=1.0)
+        if not (target / "model.bin").exists() or not (target / "config.json").exists():
+            raise RuntimeError(f"{item['label']} 下载不完整")
+
+    def _download_llm(self, item: dict[str, Any]) -> None:
+        target = config.MODELS_DIR / "llm" / item["file"]
+        if target.exists() and target.stat().st_size > 100 * 1024 * 1024:
+            return
+        target.parent.mkdir(parents=True, exist_ok=True)
+        stop = threading.Event()
+        monitor = threading.Thread(
+            target=self._monitor_file,
+            args=(item["id"], target, int(item["size_bytes"]), stop),
+            name="setup-progress",
+            daemon=True,
+        )
+        monitor.start()
+        try:
+            self._hf_file(item["repo"], item["file"], target.parent)
+        finally:
+            stop.set()
+        if not target.exists() or target.stat().st_size < 100 * 1024 * 1024:
+            raise RuntimeError(f"{item['label']} 下载不完整")
+
+    def _hf_snapshot(self, repo: str, target: Path) -> None:
+        from huggingface_hub import snapshot_download
+
+        last_error: Optional[Exception] = None
+        for endpoint in (HF_ENDPOINT, "https://huggingface.co"):
+            try:
+                snapshot_download(
+                    repo_id=repo,
+                    local_dir=str(target),
+                    endpoint=endpoint,
+                    local_files_only=False,
+                    max_workers=4,
+                )
+                return
+            except Exception as exc:
+                last_error = exc
+        raise RuntimeError(str(last_error or "模型仓库下载失败"))
+
+    def _hf_file(self, repo: str, filename: str, local_dir: Path) -> None:
+        from huggingface_hub import hf_hub_download
+
+        last_error: Optional[Exception] = None
+        for endpoint in (HF_ENDPOINT, "https://huggingface.co"):
+            try:
+                hf_hub_download(
+                    repo_id=repo,
+                    filename=filename,
+                    local_dir=str(local_dir),
+                    endpoint=endpoint,
+                )
+                return
+            except Exception as exc:
+                last_error = exc
+        raise RuntimeError(str(last_error or "模型文件下载失败"))
+
+    def _monitor_size(self, item_id: str, target: Path, expected: int, stop: threading.Event) -> None:
+        while not stop.wait(0.8):
+            size = 0
+            try:
+                for path in target.rglob("*"):
+                    if path.is_file():
+                        size += path.stat().st_size
+            except OSError:
+                pass
+            self._update_download(
+                item_id,
+                progress=min(0.97, size / expected if expected else 0.0),
+            )
+            self._publish()
+
+    def _monitor_file(self, item_id: str, target: Path, expected: int, stop: threading.Event) -> None:
+        incomplete = target.with_name(target.name + ".incomplete")
+        while not stop.wait(0.8):
+            size = 0
+            for path in (target, incomplete):
+                try:
+                    if path.exists():
+                        size = max(size, path.stat().st_size)
+                except OSError:
+                    pass
+            self._update_download(
+                item_id,
+                progress=min(0.97, size / expected if expected else 0.0),
+            )
+            self._publish()
+
+    def _finish_setup(self, whisper: dict[str, Any], llm: dict[str, Any]) -> None:
+        profile = self._hardware or self._detect_hardware()
+        updated = {
+            **self.app.settings,
+            "asr_model": whisper["dir"],
+            "llm_model": llm["name"],
+            "local_gpu_mode": "nvidia" if profile.get("profile") == "nvidia" else (
+                "amd_vulkan" if profile.get("profile") == "amd_vulkan" else (
+                    "intel_vulkan" if profile.get("profile") == "intel_vulkan" else "cpu"
+                )
+            ),
+            "asr_device": "cuda" if profile.get("profile") == "nvidia" else "cpu",
+            "hardware_auto_configure": False,
+        }
+        try:
+            self.app.settings = config.save_settings(updated)
+            models.invalidate_cache()
+            self.app.refresh_local_model_bindings()
+            self.app.brain.set_settings(self.app.settings)
+        except Exception:
+            pass
+        self._write_complete(whisper["dir"], llm["name"])
+        with self._lock:
+            self._required = False
+            self._downloading = False
+            self._busy = False
+            self._stage = "done"
+            self._progress = 1.0
+            self._message = "模型准备完成，正在启动主服务…"
+            self._refresh_options()
+        self._publish()
+        try:
+            threading.Thread(
+                target=self.app.start_background,
+                name="setup-start-app",
+                daemon=True,
+            ).start()
+        except Exception:
+            pass

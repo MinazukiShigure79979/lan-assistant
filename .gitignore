@@ -1,0 +1,40 @@
+# Local runtime data and user content
+data/
+models/
+tools/ollama/
+
+# Python environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.part
+*.zip
+build/
+dist/
+*.spec
+
+# Local secrets
+.env
+.env.*
+secrets/
+*.secret
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Personal call-review notes are kept outside the code repository
+docs/call-review-*.md
