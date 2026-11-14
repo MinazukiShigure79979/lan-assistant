@@ -78,14 +78,14 @@ if (Test-Path $DistInstaller) {
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $Root "build") | Out-Null
 
-Write-Host "1/3  Generating Windows version resource..." -ForegroundColor Cyan
+Write-Host "1/4  Generating Windows version resource..." -ForegroundColor Cyan
 & $Python (Join-Path $Root "scripts\make_version_info.py") $VersionInfoFile
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $VersionInfoFile)) {
     Fail "版本资源生成失败"
 }
 $env:LAN_BUILD_VERSION_FILE = $VersionInfoFile
 
-Write-Host "2/3  Running PyInstaller (onedir)..." -ForegroundColor Cyan
+Write-Host "2/4  Running PyInstaller (onedir)..." -ForegroundColor Cyan
 Push-Location $Root
 try {
     & $Python -m PyInstaller --noconfirm --clean --distpath (Join-Path $Root "dist") --workpath (Join-Path $Root "build\pyinstaller") "Lan.Assistant.spec"
@@ -115,7 +115,7 @@ if ($SkipInstaller) {
     exit 0
 }
 
-Write-Host "3/3  Building Inno Setup installer..." -ForegroundColor Cyan
+Write-Host "3/4  Building admin Inno Setup installer..." -ForegroundColor Cyan
 if ([string]::IsNullOrWhiteSpace($IsccPath)) {
     $candidates = @(
         $env:INNO_SETUP_ISCC,
@@ -139,33 +139,56 @@ try {
     Pop-Location
 }
 
-$Setup = Get-ChildItem $DistInstaller -Filter "Lan.Assistant-Setup-*.exe" |
+$AdminSetup = Get-ChildItem $DistInstaller -Filter "Lan.Assistant-Setup-*.exe" |
+    Where-Object { $_.Name -notlike "*-User.exe" } |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if (-not $Setup) { Fail "安装包生成后未找到输出文件" }
+if (-not $AdminSetup) { Fail "管理权限安装包生成后未找到输出文件" }
 
-$Hash = Get-FileHash $Setup.FullName -Algorithm SHA256
-$hashFile = "$($Setup.FullName).sha256"
-"$($Hash.Hash.ToLower())  $($Setup.Name)" | Set-Content -Path $hashFile -Encoding ASCII
+Write-Host "4/4  Building per-user Inno Setup installer..." -ForegroundColor Cyan
+Push-Location (Join-Path $Root "installer")
+try {
+    & $IsccPath "/DPerUser=1" "/DMyAppVersion=$Version" "/DMyAppDisplayVersion=$DisplayVersion" "/DMyVersionInfo=$InstallerVersion" "/DSourceDir=$DistApp" "/O$DistInstaller" $iss
+    if ($LASTEXITCODE -ne 0) { Fail "无管理员权限安装包构建失败" }
+} finally {
+    Pop-Location
+}
+$UserSetup = Get-ChildItem $DistInstaller -Filter "Lan.Assistant-Setup-*-User.exe" |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $UserSetup) { Fail "无管理员权限安装包生成后未找到输出文件" }
+
+$AdminHash = Get-FileHash $AdminSetup.FullName -Algorithm SHA256
+$UserHash = Get-FileHash $UserSetup.FullName -Algorithm SHA256
+"$($AdminHash.Hash.ToLower())  $($AdminSetup.Name)" | Set-Content -Path "$($AdminSetup.FullName).sha256" -Encoding ASCII
+"$($UserHash.Hash.ToLower())  $($UserSetup.Name)" | Set-Content -Path "$($UserSetup.FullName).sha256" -Encoding ASCII
 $manifest = [ordered]@{
     product = "Lan.Assistant"
     version = $Version
     display_version = $DisplayVersion
     installer_version = $InstallerVersion
     built_at = (Get-Date).ToString("o")
-    installer = $Setup.Name
-    installer_bytes = $Setup.Length
-    sha256 = $Hash.Hash.ToLower()
+    installer = $AdminSetup.Name
+    installer_bytes = $AdminSetup.Length
+    sha256 = $AdminHash.Hash.ToLower()
+    user_installer = $UserSetup.Name
+    user_installer_bytes = $UserSetup.Length
+    user_sha256 = $UserHash.Hash.ToLower()
+    installers = @(
+        [ordered]@{ kind = "admin"; name = $AdminSetup.Name; bytes = $AdminSetup.Length; sha256 = $AdminHash.Hash.ToLower() },
+        [ordered]@{ kind = "per-user"; name = $UserSetup.Name; bytes = $UserSetup.Length; sha256 = $UserHash.Hash.ToLower() }
+    )
     app_folder = $DistApp
     models_bundled = $false
     ollama_bundled = $false
 }
 $manifestPath = Join-Path $DistInstaller "release.json"
-$manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $manifestPath -Encoding UTF8
+$manifest | ConvertTo-Json -Depth 6 | Set-Content -Path $manifestPath -Encoding UTF8
 
 Write-Host ""
 Write-Host "Build complete." -ForegroundColor Green
 Write-Host "  app:      $DistApp"
-Write-Host "  setup:    $($Setup.FullName)"
-Write-Host "  sha256:   $($Hash.Hash.ToLower())"
+Write-Host "  setup:    $($AdminSetup.FullName)"
+Write-Host "  user:     $($UserSetup.FullName)"
+Write-Host "  sha256:   $($AdminHash.Hash.ToLower())"
+Write-Host "  user sha: $($UserHash.Hash.ToLower())"
 Write-Host "  manifest: $manifestPath"
 

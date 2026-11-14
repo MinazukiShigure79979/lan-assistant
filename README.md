@@ -721,7 +721,9 @@ lan-assistant/
 
 ## 重新安装 / 修复
 
-> 迁移到新机器时使用 PyInstaller 打包为 Windows EXE，不要求安装 Python。打包和安装包脚本见 [`scripts/README.md`](scripts/README.md)，当前版本号为 **v1.0**；先不执行打包，等主程序功能测试通过后再生成安装包。
+> 迁移到新机器时使用 PyInstaller 打包为 Windows EXE，不要求安装 Python。打包和安装包脚本见 [`scripts/README.md`](scripts/README.md)，当前版本号为 **v1.0**。
+>
+> 安装包有两个版本：`Lan.Assistant-Setup-v1.0.exe` 需要管理员权限；`Lan.Assistant-Setup-v1.0-User.exe` 安装到当前用户目录，不触发 UAC。未使用受信任代码签名证书时，管理员版会显示“发布者未知”。
 
 当前机器上的环境已经装好。如果以后移动了目录、删除了模型，或需要重装，按下面做：
 

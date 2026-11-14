@@ -1,4 +1,4 @@
-; Lan.Assistant installer (Inno Setup 6+)
+﻿; Lan.Assistant installer (Inno Setup 6+)
 ; Build with scripts\build_release.ps1.  Models and Ollama are intentionally
 ; not included; setup_manager.py downloads them on first launch.
 
@@ -13,6 +13,14 @@
 #endif
 #ifndef SourceDir
   #define SourceDir "..\dist\Lan.Assistant"
+#endif
+
+#ifdef PerUser
+  #define MySetupPrivileges "lowest"
+  #define MyOutputSuffix "-User"
+#else
+  #define MySetupPrivileges "admin"
+  #define MyOutputSuffix ""
 #endif
 
 #define MyAppName "Lan.Assistant"
@@ -36,16 +44,16 @@ UsePreviousAppDir=no
 DirExistsWarning=no
 AllowNoIcons=yes
 OutputDir=..\dist\installer
-OutputBaseFilename=Lan.Assistant-Setup-{#MyAppDisplayVersion}
+OutputBaseFilename=Lan.Assistant-Setup-{#MyAppDisplayVersion}{#MyOutputSuffix}
 SetupIconFile=..\static\favicon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-PrivilegesRequired=admin
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+PrivilegesRequired={#MySetupPrivileges}
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
 RestartApplications=no
 ChangesAssociations=no
@@ -75,11 +83,15 @@ Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: no
 [Code]
 function GetDefaultDir(Param: String): String;
 begin
+#ifdef PerUser
+  Result := ExpandConstant('{localappdata}\Programs\Lan_Assistant');
+#else
   { Keep the app in its own child directory. }
   if DirExists('D:\') then
     Result := 'D:\Lan_Assistant'
   else
     Result := 'C:\Lan_Assistant';
+#endif
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
