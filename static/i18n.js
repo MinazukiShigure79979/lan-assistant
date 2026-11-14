@@ -10,7 +10,6 @@
 
   const EN = {
     "说话人区分模型": "Speaker diarization model",
-    "会后离线区分会议里的不同说话人。默认 WeSpeaker ResNet34；中文会议可换 3D-Speaker。模型不随程序打包，首次使用需要下载。": "Separate speakers after the meeting, offline. WeSpeaker ResNet34 is the default; 3D-Speaker is available for Chinese-heavy meetings. Models are downloaded on first use.",
     "与会人声纹模型": "Speaker embedding model",
     "下载说话人区分模型": "Download diarization models",
     "需要两个文件：pyannote 分割模型 + 所选声纹模型。下载后无需重启服务；首次区分时会加载模型。": "Two files are required: pyannote segmentation and the selected speaker embedding. No service restart is needed; models load on first use.",

@@ -451,10 +451,7 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
             clean.get("diarization_model", "wespeaker_en_voxceleb_resnet34")
             or "wespeaker_en_voxceleb_resnet34"
         )
-        if clean["diarization_model"] not in (
-            "wespeaker_en_voxceleb_resnet34",
-            "3dspeaker_eres2net_zh",
-        ):
+        if clean["diarization_model"] not in ("wespeaker_en_voxceleb_resnet34",):
             clean["diarization_model"] = "wespeaker_en_voxceleb_resnet34"
         hotkey = str(clean.get("voice_hotkey", "ctrl+alt+space") or "ctrl+alt+space")
         if hotkey not in ("ctrl+alt+space", "ctrl+shift+space", "alt+space", "f9", "f10"):

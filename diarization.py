@@ -51,19 +51,6 @@ EMBEDDING_MODELS: dict[str, dict[str, Any]] = {
         "size": "26 MB",
         "license": "CC-BY-4.0",
     },
-    "3dspeaker_eres2net_zh": {
-        "id": "3dspeaker_eres2net_zh",
-        "label": "3D-Speaker ERes2Net（中文优先）",
-        "short": "3D-Speaker",
-        "desc": "中文会议声纹更稳；适合以中文为主的会议，英文/日文场景建议先试 WeSpeaker。",
-        "file": "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
-        "url": (
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/"
-            "speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
-        ),
-        "size": "39 MB",
-        "license": "Apache-2.0",
-    },
 }
 DEFAULT_MODEL = "wespeaker_en_voxceleb_resnet34"
 

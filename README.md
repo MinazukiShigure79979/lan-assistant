@@ -182,9 +182,8 @@ Lan.Assistant 是运行在 Windows 电脑上的实时语音助手：既能做通
 
 ### 与会人区分
 
-- 默认模型：**WeSpeaker ResNet34**（跨语种，适合中英日混合）
-- 中文会议可切换：**3D-Speaker ERes2Net**
-- 模型不随程序打包；第一次使用需要下载 **pyannote 分割模型 + 所选声纹模型**
+- 默认且当前适配的模型：**WeSpeaker ResNet34**（跨语种，适合中英日混合）
+- 模型不随程序打包；第一次使用需要下载 **pyannote 分割模型 + WeSpeaker 声纹模型**
 - 停止会议后在本机离线处理，只把会议期间的系统声音片段保留在内存，处理完成即释放
 - 输出匿名标签 **Speaker 1 / Speaker 2 / …**，不会自动猜真实姓名
 - 首次使用或短会议会增加一段等待；CPU 也能运行，核显不会被强制使用
@@ -195,7 +194,6 @@ Lan.Assistant 是运行在 Windows 电脑上的实时语音助手：既能做通
 
 - [sherpa-onnx 说话人分离模型](https://github.com/k2-fsa/sherpa/blob/master/docs/source/onnx/speaker-diarization/models.rst)
 - WeSpeaker ResNet34：CC-BY-4.0
-- 3D-Speaker ERes2Net：Apache-2.0
 
 源码运行时需要安装：
 
