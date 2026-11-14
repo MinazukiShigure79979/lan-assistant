@@ -37,6 +37,7 @@ import tkinter.font as tkfont
 STATE_URL = "http://127.0.0.1:8765/api/subtitle"
 POLL_SECONDS = 0.18
 HIDE_AFTER_SECONDS = 6.0
+MAX_ABSOLUTE_AGE = 6.0
 TRANSPARENT_KEY = "#010203"
 
 
@@ -131,11 +132,32 @@ class Overlay:
         self.last_text = ""
         self.last_change = 0.0
         self.final_lines: deque[dict] = deque(maxlen=3)
+        self.expired_turn_ids: set[str] = set()
         self.render_key = ""
         self.events: queue.Queue = queue.Queue(maxsize=4)
         self._stop = threading.Event()
         threading.Thread(target=self._poll, name="subtitle-poll", daemon=True).start()
         self.root.after(120, self._consume)
+
+    @staticmethod
+    def _max_age(en: str, zh: str) -> float:
+        if zh:
+            return max(2.2, min(5.5, 1.6 + len(zh) * 0.12 + len(en) * 0.015))
+        return max(2.0, min(4.5, 1.3 + len(en) * 0.04))
+
+    def _expire_lines(self, now: float) -> bool:
+        if not self.final_lines:
+            return False
+        kept = []
+        for row in self.final_lines:
+            if float(row.get("expires_at", 0) or 0) <= now:
+                self.expired_turn_ids.add(str(row.get("turn_id", "")))
+            else:
+                kept.append(row)
+        if len(kept) == len(self.final_lines):
+            return False
+        self.final_lines = deque(kept, maxlen=3)
+        return True
 
     def _render_stack(self, entries: list[dict]) -> None:
         self.canvas.delete("all")
@@ -250,9 +272,11 @@ class Overlay:
                 pass
             time.sleep(POLL_SECONDS)
 
-    def _hide(self) -> None:
-        self.final_lines.clear()
-        self.render_key = ""
+    def _hide(self, clear: bool = True) -> None:
+        if clear:
+            self.final_lines.clear()
+            self.expired_turn_ids.clear()
+            self.render_key = ""
         if self.visible:
             print("hide", flush=True)
             self.root.withdraw()
@@ -280,7 +304,7 @@ class Overlay:
         if state is not None:
             self._apply(state)
         if self.visible and time.time() - self.last_change > HIDE_AFTER_SECONDS:
-            self._hide()
+            self._hide(clear=False)
         self.root.after(100, self._consume)
 
     def _apply(self, state: dict) -> None:
@@ -292,22 +316,38 @@ class Overlay:
                 self._hide()
                 return
 
+            now = time.time()
+            self._expire_lines(now)
             latest = state.get("latest")
             if latest and latest.get("speaker") == "other":
                 en = str(latest.get("en", "") or "").strip()
                 zh = str(latest.get("zh", "") or "").strip()
                 turn_id = str(latest.get("id", ""))
-                if en:
+                if en and turn_id not in self.expired_turn_ids:
                     existing = next(
                         (row for row in self.final_lines if row["turn_id"] == turn_id),
                         None,
                     )
                     if existing is not None:
-                        existing["en"] = en
-                        existing["zh"] = zh
+                        if existing.get("en") != en or existing.get("zh") != zh:
+                            existing["en"] = en
+                            existing["zh"] = zh
+                            first_seen = float(existing.get("first_seen", now) or now)
+                            existing["first_seen"] = first_seen
+                            existing["expires_at"] = min(
+                                first_seen + MAX_ABSOLUTE_AGE,
+                                now + self._max_age(en, zh),
+                            )
                     else:
                         self.final_lines.append(
-                            {"turn_id": turn_id, "en": en, "zh": zh, "partial": False}
+                            {
+                                "turn_id": turn_id,
+                                "en": en,
+                                "zh": zh,
+                                "partial": False,
+                                "first_seen": now,
+                                "expires_at": now + self._max_age(en, zh),
+                            }
                         )
 
             partial_state = state.get("partial") or {}
@@ -333,7 +373,7 @@ class Overlay:
             else:
                 entries = finals[-3:]
             if not entries:
-                self._hide()
+                self._hide(clear=False)
                 return
 
             key = "|".join(
