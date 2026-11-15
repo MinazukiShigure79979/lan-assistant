@@ -3279,6 +3279,10 @@ $speaker.Dispose()
             pass
         self.stop_overlay()
         self.stop_tts()
+        try:
+            self.brain.stop()
+        except Exception:
+            pass
         self._cancel_continuation(clear=True)
         with self.lock:
             if self._debounce is not None:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import ctypes
 import os
 import re
 import subprocess
@@ -17,6 +18,8 @@ import config
 import hardware
 import log_utils
 import models
+
+OLLAMA_PID_PATH = config.DATA_DIR / "ollama.pid"
 
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
@@ -225,6 +228,93 @@ class Brain:
                 stderr=subprocess.STDOUT,
                 creationflags=CREATE_NO_WINDOW,
             )
+            try:
+                OLLAMA_PID_PATH.parent.mkdir(parents=True, exist_ok=True)
+                OLLAMA_PID_PATH.write_text(str(self._process.pid), encoding="ascii")
+            except OSError:
+                pass
+
+    def _remember_existing_server(self) -> None:
+        """Record the PID of an Ollama server left from an earlier app run."""
+        if sys.platform != "win32":
+            return
+        try:
+            command = (
+                "$p=Get-NetTCPConnection -LocalPort 11434 -State Listen "
+                "-ErrorAction SilentlyContinue | Select-Object -First 1 "
+                "-ExpandProperty OwningProcess;"
+                "if($p){$n=(Get-Process -Id $p -ErrorAction SilentlyContinue).ProcessName;"
+                "if($n -eq 'ollama'){[Console]::Out.Write($p)}}"
+            )
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", command],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=8,
+                creationflags=CREATE_NO_WINDOW,
+            )
+            pid = int((result.stdout or "").strip() or 0)
+            if pid > 0:
+                OLLAMA_PID_PATH.parent.mkdir(parents=True, exist_ok=True)
+                OLLAMA_PID_PATH.write_text(str(pid), encoding="ascii")
+        except Exception:
+            pass
+
+    def _terminate_pid(self, pid: int) -> None:
+        if pid <= 0 or sys.platform != "win32":
+            return
+        try:
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(0x0001, False, int(pid))
+            if handle:
+                try:
+                    kernel32.TerminateProcess(handle, 1)
+                finally:
+                    kernel32.CloseHandle(handle)
+        except Exception:
+            pass
+
+    def stop(self) -> None:
+        """Stop the project-local Ollama server so exiting frees VRAM."""
+        proc = self._process
+        self._process = None
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.terminate()
+                proc.wait(timeout=5)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        # A previous run may have left the server alive; the PID file lets the
+        # next run adopt it, and shutdown can still clean it up by name.
+        try:
+            pid = int(OLLAMA_PID_PATH.read_text(encoding="ascii").strip() or 0)
+        except Exception:
+            pid = 0
+        if pid > 0:
+            try:
+                check = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command",
+                     f"(Get-Process -Id {pid} -ErrorAction SilentlyContinue).ProcessName"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=5,
+                    creationflags=CREATE_NO_WINDOW,
+                )
+                if (check.stdout or "").strip().lower() == "ollama":
+                    self._terminate_pid(pid)
+            except Exception:
+                pass
+        try:
+            OLLAMA_PID_PATH.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     def _model_names(self) -> list[str]:
         data = self._http("GET", "/api/tags", timeout=5.0)
@@ -330,6 +420,8 @@ class Brain:
                         time.sleep(0.8)
                     else:
                         raise BrainError("本地模型服务启动超时")
+                else:
+                    self._remember_existing_server()
                 names = self._model_names()
                 wanted = self.model.split(":")[0]
                 if not any(n == self.model or n.split(":")[0] == wanted for n in names):
