@@ -2486,7 +2486,7 @@
     els.setLocalModel.value = s.llm_model || (state.models.llm[0] && state.models.llm[0].name) || "qwen3.5-copilot";
     const fallbackAsrLanguage = s.asr_language || "en";
     els.setCallAsrLanguage.value = s.call_asr_language || fallbackAsrLanguage;
-    els.setTranslateAsrLanguage.value = s.translate_asr_language || fallbackAsrLanguage;
+    els.setTranslateAsrLanguage.value = s.translate_asr_language || "auto";
     els.setTranslateTargetLanguage.value = s.translate_target_language || "zh";
     els.setMeetingAsrLanguage.value = s.meeting_asr_language || "zh";
     els.setMediaType.value = s.media_type || "auto";

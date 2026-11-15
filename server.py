@@ -1298,6 +1298,11 @@ class App:
             return value
         if self.mode == "meeting":
             return "zh"
+        if self.mode == "translate":
+            # Subtitle mode defaults to all-language auto detection.  An empty
+            # stored value must not silently fall back to English and strip
+            # Chinese/Japanese/Korean text.
+            return "auto"
         fallback = str(self.settings.get("asr_language", "en") or "en")
         return fallback if fallback in ("zh", "en", "ja", "ko", "auto") else "en"
 
