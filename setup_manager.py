@@ -66,6 +66,15 @@ WHISPER_OPTIONS: list[dict[str, Any]] = [
         "size": "1.5 GB",
     },
     {
+        "id": "large-v3",
+        "dir": "faster-whisper-large-v3",
+        "label": "Whisper Large v3",
+        "desc": "比 Turbo 更准，适合中文、口音、专名和长内容；速度更慢。",
+        "repo": "Systran/faster-whisper-large-v3",
+        "size_bytes": 3_087_284_237,
+        "size": "2.9 GB",
+    },
+    {
         "id": "small",
         "dir": "faster-whisper-small",
         "label": "Whisper Small",

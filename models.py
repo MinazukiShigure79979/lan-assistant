@@ -263,6 +263,15 @@ _DEFAULT_MODELS: list[dict[str, Any]] = [
         "source": "Systran/faster-whisper-large-v3-turbo",
     },
     {
+        "id": "whisper-large-v3",
+        "kind": "whisper",
+        "name": "faster-whisper-large-v3",
+        "label": "Whisper Large v3",
+        "path": "faster-whisper-large-v3",
+        "size_hint": "2.9 GB",
+        "source": "Systran/faster-whisper-large-v3",
+    },
+    {
         "id": "whisper-small",
         "kind": "whisper",
         "name": "faster-whisper-small",
