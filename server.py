@@ -863,6 +863,12 @@ class App:
         with self._voice_lock:
             status = self.voice_state.get("status")
         if status == "recording":
+            started_at = float(self.voice_state.get("started_at", 0) or 0)
+            if started_at and time.time() - started_at < 0.45:
+                # Some keyboard drivers/apps deliver the hotkey twice (key
+                # repeat or a duplicate hook).  Do not let that turn a fresh
+                # recording into an immediate stop.
+                return {"ok": True, "state": self.voice_public_state()}
             return self.stop_voice_input()
         if status in ("transcribing",):
             return {"ok": False, "error": "正在识别上一段语音，请稍候。"}
@@ -1264,6 +1270,11 @@ class App:
             "meta": dict(meta),
             "received_at": time.time(),
         }
+        print(
+            f"[asr] segment {speaker} audio_ms={int(len(pcm) * 1000 / 16000)} "
+            f"reason={meta.get('reason', '')}",
+            flush=True,
+        )
         self._asr_queue.put(item)
 
     def _on_partial(self, speaker: str, pcm: Any, meta: dict[str, Any]) -> None:
@@ -1368,6 +1379,13 @@ class App:
                     initial_prompt=self._asr_prompt(self._asr_language()),
                     language=self._asr_language(),
                     fast=(self.mode == "translate"),
+                )
+                print(
+                    f"[asr] result lang={result.get('language', '')} "
+                    f"chars={len(str(result.get('text', '') or ''))} "
+                    f"filtered={bool(result.get('filtered'))} "
+                    f"error={str(result.get('error', '') or '')[:120]}",
+                    flush=True,
                 )
                 if result.get("text"):
                     result["text"] = self._correct_media_terms(str(result["text"]))
@@ -3227,7 +3245,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/devices":
             try:
-                self._json({"ok": True, "devices": list_devices(), "current": self.app.settings})
+                self._json({"ok": True, "devices": list_devices(), "current": config.public_settings(self.app.settings)})
             except Exception as exc:
                 self._error(f"读取音频设备失败：{exc}", 500)
             return

@@ -631,6 +631,7 @@ class GlobalHotkey:
         self._thread_id = 0
         self._ready = threading.Event()
         self._lock = threading.Lock()
+        self._last_fire = 0.0
 
     def start(self) -> bool:
         self.stop()
@@ -656,6 +657,10 @@ class GlobalHotkey:
             msg = ctypes.wintypes.MSG()
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
                 if msg.message == WM_HOTKEY:
+                    now = time.monotonic()
+                    if now - self._last_fire < 0.45:
+                        continue
+                    self._last_fire = now
                     try:
                         self.callback()
                     except Exception:

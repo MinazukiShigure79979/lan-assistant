@@ -455,6 +455,7 @@ class SourceCapture:
         self._channels = 1
         self._pending = np.empty(0, dtype=np.int16)
         self._last_level = 0.0
+        self._last_debug = 0.0
         self._last_frame_at = time.monotonic()
         self.open_error = ""
 
@@ -551,6 +552,13 @@ class SourceCapture:
                         continue
                     self.segmenter.process(frame)
                     now = time.monotonic()
+                    if now - self._last_debug >= 2.0:
+                        self._last_debug = now
+                        print(
+                            f"[audio] {self.speaker} level={level:.4f} "
+                            f"speech_ms={self.segmenter.speech_ms} active={self.segmenter.active}",
+                            flush=True,
+                        )
                     if now - self._last_level >= 0.1:
                         self._last_level = now
                         try:
