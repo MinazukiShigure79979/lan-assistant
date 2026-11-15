@@ -1640,3 +1640,6 @@ dialog#settingsDialog {
   .turn-en { font-size: 17px; }
   .option-en { font-size: 16.5px; }
 }
+
+.cuda-local-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.cuda-local-row input { flex: 1; min-width: 260px; }

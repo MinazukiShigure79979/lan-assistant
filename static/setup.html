@@ -42,7 +42,13 @@
         <input id="ollamaCustomUrl" class="hidden" type="text" maxlength="1000" placeholder="https://example.com/ollama-windows-amd64.zip" autocomplete="off">
         <button id="installOllama" class="btn btn-primary" type="button">下载并安装 Ollama</button>
       </div>
-      <div class="install-note">下载约 1.6 GB。检测到 NVIDIA 显卡时还会下载约 1.3 GB CUDA 加速组件；只有核显的电脑会跳过。官方源较慢时，可以切到 GitHub 或填写自定义 ZIP 地址。</div>
+      <div class="setup-source-row">
+        <label for="ollamaLocalPath">本地 ZIP</label>
+        <input id="ollamaLocalPath" type="text" readonly placeholder="选择已下载的 ollama-windows-amd64.zip">
+        <button id="browseOllamaLocal" class="btn btn-ghost" type="button">浏览…</button>
+        <button id="installOllamaLocal" class="btn" type="button">使用本地 ZIP 安装</button>
+      </div>
+      <div class="install-note">下载约 1.6 GB。检测到 NVIDIA 显卡时还会下载约 1.3 GB CUDA 加速组件；只有核显的电脑会跳过。已下载过 ZIP 或系统开了 ShadowSocksR 等代理时，可以直接选择本地包。</div>
       <div class="install-box">
         <div class="install-row">
           <span>Ollama 便携版</span>
@@ -113,6 +119,6 @@
     </footer>
   </main>
   <script src="/static/i18n.js?v=2"></script>
-  <script src="/static/setup.js?v=4"></script>
+  <script src="/static/setup.js?v=5"></script>
 </body>
 </html>

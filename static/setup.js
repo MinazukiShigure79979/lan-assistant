@@ -15,6 +15,9 @@
     retryOllama: $("#retryOllama"),
     ollamaSource: $("#ollamaSource"),
     ollamaCustomUrl: $("#ollamaCustomUrl"),
+    ollamaLocalPath: $("#ollamaLocalPath"),
+    browseOllamaLocal: $("#browseOllamaLocal"),
+    installOllamaLocal: $("#installOllamaLocal"),
     installOllama: $("#installOllama"),
     hardwareLine: $("#hardwareLine"),
     cudaLine: $("#cudaLine"),
@@ -239,6 +242,11 @@
         els.installOllama.disabled = installing;
         els.installOllama.textContent = state.error ? "重试安装" : "下载并安装 Ollama";
       }
+      if (els.installOllamaLocal) {
+        els.installOllamaLocal.disabled = installing;
+        els.installOllamaLocal.classList.toggle("hidden", installing);
+      }
+      if (els.browseOllamaLocal) els.browseOllamaLocal.disabled = installing;
       return;
     }
     setStep(state.stage === "done" ? "start" : "models");
@@ -312,9 +320,57 @@
     }
   }
 
+  async function browseOllamaLocal() {
+    try {
+      const result = await api("/api/dialog/file", { method: "POST", body: "{}" });
+      if (result && result.path) {
+        els.ollamaLocalPath.value = result.path;
+      }
+    } catch (err) {
+      els.ollamaError.textContent = err.message;
+      els.ollamaError.classList.remove("hidden");
+    }
+  }
+
+  async function startLocalOllamaInstall() {
+    const localPath = els.ollamaLocalPath ? els.ollamaLocalPath.value.trim() : "";
+    if (!localPath) {
+      els.ollamaError.textContent = "请先选择本地 Ollama ZIP 文件。";
+      els.ollamaError.classList.remove("hidden");
+      return;
+    }
+    if (els.installOllamaLocal) {
+      els.installOllamaLocal.disabled = true;
+      els.installOllamaLocal.textContent = "正在安装…";
+    }
+    els.ollamaError.classList.add("hidden");
+    try {
+      const result = await api("/api/setup/install-ollama", {
+        method: "POST",
+        body: JSON.stringify({ local_path: localPath }),
+      });
+      if (!result.ok) {
+        throw new Error(result.error || "安装未启动");
+      }
+    } catch (err) {
+      els.ollamaError.textContent = err.message;
+      els.ollamaError.classList.remove("hidden");
+      if (els.installOllamaLocal) {
+        els.installOllamaLocal.disabled = false;
+        els.installOllamaLocal.textContent = "使用本地 ZIP 安装";
+      }
+    }
+  }
+
   els.downloadBtn.addEventListener("click", startDownload);
   if (els.installOllama) {
     els.installOllama.addEventListener("click", startOllamaInstall);
+  }
+  if (els.browseOllamaLocal) {
+    els.browseOllamaLocal.addEventListener("click", browseOllamaLocal);
+  }
+  if (els.installOllamaLocal) {
+    els.installOllamaLocal.addEventListener("click", startLocalOllamaInstall);
   }
   if (els.ollamaSource) {
     els.ollamaSource.addEventListener("change", () => {

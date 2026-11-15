@@ -21,6 +21,9 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import config
+import proxy_utils
+
+proxy_utils.apply_system_proxy()
 
 CUDA_DIR = config.LOCAL_APP_DIR / "cuda"
 WHEEL_DIR = config.LOCAL_APP_DIR / "downloads" / "cuda-wheels"
@@ -254,3 +257,32 @@ def install(progress: Optional[Callable[[float, str], None]] = None) -> None:
             raise RuntimeError("CUDA 组件解压后不完整")
         if progress:
             progress(1.0, "CUDA 加速组件已安装。")
+
+
+def install_local(path: str) -> None:
+    """Install CUDA DLLs from a local folder, ZIP, or .whl files."""
+    with _lock:
+        source = Path(str(path or "").strip().strip('"')).expanduser()
+        if not source.exists():
+            raise RuntimeError("本地 CUDA 组件路径不存在")
+        if source.is_file():
+            if source.suffix.lower() not in (".whl", ".zip"):
+                raise RuntimeError("请选择包含 CUDA DLL 的目录、ZIP 或 .whl 文件")
+            _extract(source)
+        else:
+            nvidia = source
+            if source.name.lower() != "nvidia":
+                candidate = source / "nvidia"
+                if candidate.is_dir():
+                    nvidia = candidate
+            if nvidia.name.lower() == "nvidia" and (nvidia / "cublas").is_dir():
+                destination = CUDA_DIR / "nvidia"
+                shutil.copytree(nvidia, destination, dirs_exist_ok=True)
+            else:
+                wheels = list(source.glob("*.whl"))
+                if not wheels:
+                    raise RuntimeError("目录中没有 nvidia 组件，也没有 .whl 文件")
+                for wheel in wheels:
+                    _extract(wheel)
+        if not is_available():
+            raise RuntimeError("本地 CUDA 组件不完整，至少需要 cuBLAS 和 cuDNN")

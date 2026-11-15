@@ -35,6 +35,7 @@ except Exception:
 import config
 import audio_cue
 import cuda_runtime
+import dialog_helper
 import diarization
 import hardware
 import language
@@ -929,6 +930,53 @@ class App:
                     {
                         "status": "error",
                         "message": "CUDA 加速组件下载失败。",
+                        "error": str(exc)[:500],
+                    }
+                )
+        self.bus.publish({"type": "cuda", "data": self.cuda_public_state()})
+
+    def start_cuda_local(self, path: str) -> bool:
+        if str(self.hardware.get("profile", "cpu")) != "nvidia":
+            return False
+        with self._cuda_lock:
+            if self._cuda_thread is not None and self._cuda_thread.is_alive():
+                return False
+            self.cuda_state.update(
+                {
+                    "status": "installing",
+                    "progress": 0.0,
+                    "message": "正在从本地安装 CUDA 加速组件…",
+                    "error": "",
+                }
+            )
+            self._cuda_thread = threading.Thread(
+                target=self._cuda_local_worker,
+                args=(str(path or ""),),
+                name="cuda-component-local",
+                daemon=True,
+            )
+            self._cuda_thread.start()
+        self.bus.publish({"type": "cuda", "data": self.cuda_public_state()})
+        return True
+
+    def _cuda_local_worker(self, path: str) -> None:
+        try:
+            cuda_runtime.install_local(path)
+            with self._cuda_lock:
+                self.cuda_state.update(
+                    {
+                        "status": "done",
+                        "progress": 1.0,
+                        "message": "本地 CUDA 组件已安装；重启应用后生效。",
+                        "error": "",
+                    }
+                )
+        except Exception as exc:
+            with self._cuda_lock:
+                self.cuda_state.update(
+                    {
+                        "status": "error",
+                        "message": "本地 CUDA 组件安装失败。",
                         "error": str(exc)[:500],
                     }
                 )
@@ -3347,6 +3395,15 @@ class Handler(BaseHTTPRequestHandler):
                 }
             )
             return
+        if path == "/api/cuda/install-local":
+            local = str(body.get("path", "") or "").strip()
+            if not local:
+                self._error("请选择本地 CUDA 组件目录或文件", 400)
+                return
+            started = self.app.start_cuda_local(local)
+            state = self.app.cuda_public_state()
+            self._json({"ok": started, "cuda": state, "error": "" if started else state.get("error", "")})
+            return
         if path == "/api/devices":
             try:
                 self._json({"ok": True, "devices": list_devices(), "current": config.public_settings(self.app.settings)})
@@ -3534,7 +3591,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/setup/install-ollama":
             started = self.app.setup.install_ollama_async(
-                str(body.get("source_url", "") or "")
+                str(body.get("source_url", "") or ""),
+                str(body.get("local_path", "") or ""),
             )
             self._json(
                 {
@@ -3543,6 +3601,23 @@ class Handler(BaseHTTPRequestHandler):
                     "error": self.app.setup.public_state().get("error", ""),
                 }
             )
+            return
+        if path == "/api/dialog/file":
+            try:
+                selected = dialog_helper.pick_file(
+                    "选择 Ollama ZIP 安装包",
+                    "Ollama ZIP (*.zip)|*.zip|All files (*.*)|*.*",
+                )
+                self._json({"ok": True, "path": selected})
+            except Exception as exc:
+                self._error(f"打开文件选择窗口失败：{exc}", 500)
+            return
+        if path == "/api/dialog/folder":
+            try:
+                selected = dialog_helper.pick_folder("选择本地 CUDA 组件目录")
+                self._json({"ok": True, "path": selected})
+            except Exception as exc:
+                self._error(f"打开目录选择窗口失败：{exc}", 500)
             return
         if path == "/api/setup/download":
             whisper_ids = body.get("whisper_ids")

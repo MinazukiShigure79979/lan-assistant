@@ -7,7 +7,7 @@
   <title>Lan.Assistant</title>
   <link rel="icon" type="image/png" sizes="256x256" href="/static/favicon.png?v=37">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=37">
-  <link rel="stylesheet" href="/static/app.css?v=81">
+  <link rel="stylesheet" href="/static/app.css?v=82">
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -461,6 +461,11 @@
             </div>
             <div class="device-hint" id="cudaStatus">正在读取…</div>
             <div class="device-hint" id="cudaError"></div>
+            <div class="cuda-local-row">
+              <input type="text" id="cudaLocalPath" placeholder="选择本地 nvidia 组件目录、ZIP 或 .whl 文件夹">
+              <button type="button" class="btn btn-tiny btn-ghost" id="btnBrowseCuda">浏览…</button>
+              <button type="button" class="btn btn-tiny" id="btnInstallCudaLocal">使用本地组件</button>
+            </div>
           </div>
         </div>
 
@@ -1342,6 +1347,6 @@
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
   <script src="/static/i18n.js?v=24"></script>
-  <script src="/static/app.js?v=90"></script>
+  <script src="/static/app.js?v=91"></script>
 </body>
 </html>

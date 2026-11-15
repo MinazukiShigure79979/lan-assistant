@@ -97,6 +97,9 @@
     cudaBlock: $("#cudaBlock"),
     cudaStatus: $("#cudaStatus"),
     cudaError: $("#cudaError"),
+    cudaLocalPath: $("#cudaLocalPath"),
+    btnBrowseCuda: $("#btnBrowseCuda"),
+    btnInstallCudaLocal: $("#btnInstallCudaLocal"),
     btnInstallCuda: $("#btnInstallCuda"),
     sessionList: $("#sessionList"),
     sessionSummary: $("#sessionSummary"),
@@ -1240,7 +1243,7 @@
     if (!els.cudaStatus) return;
     const cuda = state.cuda || {};
     const button = els.btnInstallCuda;
-    const downloading = cuda.status === "downloading";
+    const downloading = cuda.status === "downloading" || cuda.status === "installing";
     const available = !!cuda.available;
     if (button) {
       button.classList.toggle("hidden", !cuda.required || available || downloading);
@@ -1249,6 +1252,8 @@
         ? `下载中 ${Math.round((cuda.progress || 0) * 100)}%`
         : "下载 CUDA 组件（约 1.3 GB）";
     }
+    if (els.btnBrowseCuda) els.btnBrowseCuda.disabled = downloading;
+    if (els.btnInstallCudaLocal) els.btnInstallCudaLocal.disabled = downloading;
     if (!cuda.required) {
       els.cudaStatus.textContent = "当前设备不是 NVIDIA，不需要 CUDA 加速组件。";
     } else if (available) {
@@ -3592,7 +3597,39 @@
         }
       });
     }
-    async function installCuda() {
+    async function browseCudaLocal() {
+    try {
+      const res = await api("/api/dialog/folder", { method: "POST", body: "{}" });
+      if (res && res.path && els.cudaLocalPath) {
+        els.cudaLocalPath.value = res.path;
+      }
+    } catch (err) {
+      toast(err.message, "bad");
+    }
+  }
+
+  async function installCudaLocal() {
+    const path = els.cudaLocalPath ? els.cudaLocalPath.value.trim() : "";
+    if (!path) {
+      toast("请先选择本地 CUDA 组件目录", "bad");
+      return;
+    }
+    if (els.btnInstallCudaLocal) els.btnInstallCudaLocal.disabled = true;
+    try {
+      const res = await api("/api/cuda/install-local", {
+        method: "POST",
+        body: JSON.stringify({ path }),
+      });
+      state.cuda = res.cuda || state.cuda;
+      renderCuda();
+      toast("正在从本地安装 CUDA 组件", "good");
+    } catch (err) {
+      toast(err.message, "bad");
+      if (els.btnInstallCudaLocal) els.btnInstallCudaLocal.disabled = false;
+    }
+  }
+
+  async function installCuda() {
     if (!els.btnInstallCuda) return;
     els.btnInstallCuda.disabled = true;
     try {
@@ -3609,6 +3646,12 @@
 
   if (els.btnInstallCuda) {
     els.btnInstallCuda.addEventListener("click", installCuda);
+  }
+  if (els.btnBrowseCuda) {
+    els.btnBrowseCuda.addEventListener("click", browseCudaLocal);
+  }
+  if (els.btnInstallCudaLocal) {
+    els.btnInstallCudaLocal.addEventListener("click", installCudaLocal);
   }
   $("#btnRefreshDevices").addEventListener("click", async () => {
       els.deviceHint.textContent = "正在刷新音频设备…";

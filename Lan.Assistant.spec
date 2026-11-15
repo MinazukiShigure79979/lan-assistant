@@ -30,6 +30,8 @@ hiddenimports = [
     "log_utils",
     "cuda_env",
     "cuda_runtime",
+    "dialog_helper",
+    "proxy_utils",
     "audio_cue",
     "restart_app",
     "pystray._win32",

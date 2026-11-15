@@ -30,7 +30,10 @@ import config
 import cuda_runtime
 import hardware
 import models
+import proxy_utils
 import version
+
+proxy_utils.apply_system_proxy()
 
 SETUP_PATH = config.DATA_DIR / "setup.json"
 OLLAMA_ZIP_URL = "https://ollama.com/download/ollama-windows-amd64.zip"
@@ -195,6 +198,7 @@ class SetupManager:
         self._cuda_error = ""
         self._downloads: dict[str, dict[str, Any]] = {}
         self._ollama_source_url = OLLAMA_ZIP_URL
+        self._ollama_local_path = ""
         self._hardware: dict[str, Any] = dict(getattr(app, "hardware", {}) or {})
         self._recommended: dict[str, str] = {}
         self._whisper: list[dict[str, Any]] = []
@@ -321,23 +325,41 @@ class SetupManager:
         except Exception:
             pass
 
-    def install_ollama_async(self, source_url: str = "") -> bool:
-        raw_url = str(source_url or "").strip()
-        if raw_url:
+    def install_ollama_async(self, source_url: str = "", local_path: str = "") -> bool:
+        raw_local = str(local_path or "").strip().strip('"')
+        local_zip = Path(raw_local).expanduser() if raw_local else None
+        if local_zip is not None:
             try:
-                parsed = urllib.parse.urlparse(raw_url)
-                if parsed.scheme not in ("http", "https") or not parsed.netloc:
-                    raise ValueError("unsupported URL")
-            except Exception:
+                if not local_zip.is_file() or not zipfile.is_zipfile(local_zip):
+                    raise ValueError("不是有效的 ZIP")
+                with zipfile.ZipFile(local_zip) as archive:
+                    if not any(name.replace("\\", "/").endswith("ollama.exe") for name in archive.namelist()):
+                        raise ValueError("ZIP 中没有 ollama.exe")
+            except Exception as exc:
                 with self._lock:
-                    self._error = "Ollama 下载地址无效，请填写 http/https ZIP 地址。"
+                    self._error = f"本地 Ollama 安装包无效：{exc}"
                     self._stage = "error"
                     self._message = self._error
                 self._publish()
                 return False
-            selected_url = raw_url[:1000]
+            selected_url = ""
         else:
-            selected_url = OLLAMA_ZIP_URL
+            raw_url = str(source_url or "").strip()
+            if raw_url:
+                try:
+                    parsed = urllib.parse.urlparse(raw_url)
+                    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                        raise ValueError("unsupported URL")
+                except Exception:
+                    with self._lock:
+                        self._error = "Ollama 下载地址无效，请填写 http/https ZIP 地址。"
+                        self._stage = "error"
+                        self._message = self._error
+                    self._publish()
+                    return False
+                selected_url = raw_url[:1000]
+            else:
+                selected_url = OLLAMA_ZIP_URL
         with self._lock:
             if self._busy:
                 return False
@@ -346,12 +368,15 @@ class SetupManager:
                 self._message = "Ollama 已就绪。"
                 return True
             self._ollama_source_url = selected_url
+            self._ollama_local_path = str(local_zip) if local_zip is not None else ""
             self._busy = True
             self._installing_ollama = True
             self._error = ""
             self._stage = "ollama"
             self._progress = 0.0
-            self._message = "正在下载 Ollama 便携版…"
+            self._message = (
+                "正在安装本地 Ollama 安装包…" if local_zip is not None else "正在下载 Ollama 便携版…"
+            )
         self._job = threading.Thread(target=self._install_ollama_job, name="setup-ollama", daemon=True)
         self._job.start()
         self._publish()
@@ -464,39 +489,48 @@ class SetupManager:
         target_dir.mkdir(parents=True, exist_ok=True)
         downloads = config.LOCAL_APP_DIR / "downloads"
         downloads.mkdir(parents=True, exist_ok=True)
-        archive = downloads / "ollama-windows-amd64.zip"
-        partial = archive.with_name(archive.name + ".part")
-        archive.unlink(missing_ok=True)
-        partial.unlink(missing_ok=True)
-        last_error: Exception | None = None
-        for url in self._ollama_candidates():
-            for attempt in (1, 2):
-                try:
-                    host = urllib.parse.urlparse(url).netloc or "下载源"
-                    self._set(
-                        _progress=0.0,
-                        _message=f"正在从 {host} 下载 Ollama（约 1.6 GB）…",
-                    )
-                    self._publish()
-                    self._download_ollama_archive(url, archive)
-                    break
-                except _InvalidArchive as exc:
-                    last_error = exc
-                    break
-                except Exception as exc:
-                    last_error = exc
-                    if attempt == 1 and partial.is_file():
-                        self._set(_message="下载中断，正在从断点继续…")
+        local_path = str(getattr(self, "_ollama_local_path", "") or "").strip()
+        downloaded_archive = not bool(local_path)
+        if local_path:
+            archive = Path(local_path)
+            if not archive.is_file() or not zipfile.is_zipfile(archive):
+                raise RuntimeError("本地 Ollama ZIP 不存在或已损坏")
+            self._set(_progress=0.15, _message=f"正在使用本地 Ollama 安装包：{archive.name}")
+            self._publish()
+        else:
+            archive = downloads / "ollama-windows-amd64.zip"
+            partial = archive.with_name(archive.name + ".part")
+            archive.unlink(missing_ok=True)
+            partial.unlink(missing_ok=True)
+            last_error: Exception | None = None
+            for url in self._ollama_candidates():
+                for attempt in (1, 2):
+                    try:
+                        host = urllib.parse.urlparse(url).netloc or "下载源"
+                        self._set(
+                            _progress=0.0,
+                            _message=f"正在从 {host} 下载 Ollama（约 1.6 GB）…",
+                        )
                         self._publish()
-                        continue
-                    partial.unlink(missing_ok=True)
+                        self._download_ollama_archive(url, archive)
+                        break
+                    except _InvalidArchive as exc:
+                        last_error = exc
+                        break
+                    except Exception as exc:
+                        last_error = exc
+                        if attempt == 1 and partial.is_file():
+                            self._set(_message="下载中断，正在从断点继续…")
+                            self._publish()
+                            continue
+                        partial.unlink(missing_ok=True)
+                        break
+                if archive.is_file():
                     break
-            if archive.is_file():
-                break
-        if not archive.is_file():
-            raise RuntimeError(
-                f"Ollama 安装包下载失败，已尝试多个下载源。最后一次错误：{last_error}"
-            )
+            if not archive.is_file():
+                raise RuntimeError(
+                    f"Ollama 安装包下载失败，已尝试多个下载源。最后一次错误：{last_error}"
+                )
         self._set(_progress=0.88, _message="正在解压 Ollama…")
         self._publish()
         temp_extract = downloads / "ollama-extract"
@@ -519,7 +553,8 @@ class SetupManager:
         if not config.OLLAMA_BIN.exists():
             raise RuntimeError("ollama.exe 未安装到预期位置")
         shutil.rmtree(temp_extract, ignore_errors=True)
-        archive.unlink(missing_ok=True)
+        if downloaded_archive:
+            archive.unlink(missing_ok=True)
         self._set(_progress=0.95, _message="Ollama 已安装。")
         self._publish()
 
