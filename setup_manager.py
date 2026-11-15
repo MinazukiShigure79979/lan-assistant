@@ -19,6 +19,7 @@ import os
 import shutil
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
@@ -45,6 +46,10 @@ OLLAMA_SOURCES = [
     },
 ]
 HF_ENDPOINT = os.environ.get("LAN_HF_ENDPOINT", "https://hf-mirror.com")
+
+
+class _InvalidArchive(RuntimeError):
+    """Downloaded content is HTML/truncated/invalid, not an Ollama ZIP."""
 
 WHISPER_OPTIONS: list[dict[str, Any]] = [
     {
@@ -364,24 +369,40 @@ class SetupManager:
                 self._message = "可以重试，或手动安装 Ollama 后点重试。"
             self._publish()
 
-    def _install_ollama(self) -> None:
-        target_dir = config.OLLAMA_DIR
-        target_dir.mkdir(parents=True, exist_ok=True)
-        downloads = config.LOCAL_APP_DIR / "downloads"
-        downloads.mkdir(parents=True, exist_ok=True)
-        archive = downloads / "ollama-windows-amd64.zip"
-        self._set(_progress=0.0, _message="正在下载 Ollama（约 1.6 GB）…")
-        self._publish()
-        source_url = str(getattr(self, "_ollama_source_url", OLLAMA_ZIP_URL) or OLLAMA_ZIP_URL)
-        request = urllib.request.Request(
-            source_url,
-            headers={"User-Agent": "Lan.Assistant-Setup/1.0"},
-        )
-        with urllib.request.urlopen(request, timeout=60) as response:
-            total = int(response.headers.get("Content-Length", "0") or 0)
+    def _ollama_candidates(self) -> list[str]:
+        selected = str(getattr(self, "_ollama_source_url", OLLAMA_ZIP_URL) or OLLAMA_ZIP_URL)
+        values = [selected]
+        values.extend(str(item["url"]) for item in OLLAMA_SOURCES)
+        result: list[str] = []
+        for value in values:
+            value = value.strip()
+            if value and value not in result:
+                result.append(value)
+        return result
+
+    def _download_ollama_archive(self, url: str, archive: Path) -> None:
+        partial = archive.with_name(archive.name + ".part")
+        offset = partial.stat().st_size if partial.is_file() else 0
+        headers = {"User-Agent": "Lan.Assistant-Setup/1.0"}
+        if offset:
+            headers["Range"] = f"bytes={offset}-"
+        request = urllib.request.Request(url, headers=headers)
+        try:
+            response = urllib.request.urlopen(request, timeout=60)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 416 and offset:
+                partial.unlink(missing_ok=True)
+            raise
+        with response:
+            status = int(getattr(response, "status", 200) or 200)
+            total_header = int(response.headers.get("Content-Length", "0") or 0)
+            append = bool(offset and status == 206)
+            if not append:
+                offset = 0
+            total = offset + total_header if total_header else 0
             received = 0
-            tmp = archive.with_suffix(".zip.part")
-            with tmp.open("wb") as handle:
+            mode = "ab" if append else "wb"
+            with partial.open(mode) as handle:
                 while True:
                     chunk = response.read(1024 * 1024)
                     if not chunk:
@@ -389,9 +410,59 @@ class SetupManager:
                     handle.write(chunk)
                     received += len(chunk)
                     if total:
-                        self._set(_progress=min(0.85, received / total * 0.85))
+                        self._set(_progress=min(0.85, (offset + received) / total * 0.85))
                     self._publish()
-            tmp.replace(archive)
+        downloaded = partial.stat().st_size if partial.is_file() else 0
+        if total_header and downloaded < total:
+            raise RuntimeError(
+                f"下载不完整：{downloaded}/{total} 字节；保留断点，重试会继续"
+            )
+        if downloaded < 1_000_000:
+            partial.unlink(missing_ok=True)
+            raise _InvalidArchive("下载内容太小，可能不是 Ollama ZIP")
+        if not zipfile.is_zipfile(partial):
+            partial.unlink(missing_ok=True)
+            raise _InvalidArchive("下载内容不是有效 ZIP，可能被代理/镜像返回了 HTML")
+        partial.replace(archive)
+
+    def _install_ollama(self) -> None:
+        target_dir = config.OLLAMA_DIR
+        target_dir.mkdir(parents=True, exist_ok=True)
+        downloads = config.LOCAL_APP_DIR / "downloads"
+        downloads.mkdir(parents=True, exist_ok=True)
+        archive = downloads / "ollama-windows-amd64.zip"
+        partial = archive.with_name(archive.name + ".part")
+        archive.unlink(missing_ok=True)
+        partial.unlink(missing_ok=True)
+        last_error: Exception | None = None
+        for url in self._ollama_candidates():
+            for attempt in (1, 2):
+                try:
+                    host = urllib.parse.urlparse(url).netloc or "下载源"
+                    self._set(
+                        _progress=0.0,
+                        _message=f"正在从 {host} 下载 Ollama（约 1.6 GB）…",
+                    )
+                    self._publish()
+                    self._download_ollama_archive(url, archive)
+                    break
+                except _InvalidArchive as exc:
+                    last_error = exc
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    if attempt == 1 and partial.is_file():
+                        self._set(_message="下载中断，正在从断点继续…")
+                        self._publish()
+                        continue
+                    partial.unlink(missing_ok=True)
+                    break
+            if archive.is_file():
+                break
+        if not archive.is_file():
+            raise RuntimeError(
+                f"Ollama 安装包下载失败，已尝试多个下载源。最后一次错误：{last_error}"
+            )
         self._set(_progress=0.88, _message="正在解压 Ollama…")
         self._publish()
         temp_extract = downloads / "ollama-extract"
@@ -414,6 +485,7 @@ class SetupManager:
         if not config.OLLAMA_BIN.exists():
             raise RuntimeError("ollama.exe 未安装到预期位置")
         shutil.rmtree(temp_extract, ignore_errors=True)
+        archive.unlink(missing_ok=True)
         self._set(_progress=0.95, _message="Ollama 已安装。")
         self._publish()
 
