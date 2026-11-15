@@ -45,13 +45,28 @@ _HALLUCINATIONS = {
 }
 
 
-def _clean_text(text: str, language: str = "en") -> str:
+def _script_language(text: str) -> str:
+    """Return a script-based language hint for auto-detected text."""
+    if re.search(r"[\u3040-\u30ff]", text):
+        return "ja"
+    if re.search(r"[\uac00-\ud7af]", text):
+        return "ko"
+    if re.search(r"[\u3400-\u9fff]", text):
+        return "zh"
+    return ""
+
+
+def _clean_text(text: str, language: str = "en", strip_cjk: Optional[bool] = None) -> str:
     text = text.replace("\u200b", " ").replace("\xa0", " ")
     text = re.sub(r"\[(?:blank_audio|silence|music|applause|laughter)\]", " ", text, flags=re.I)
     text = re.sub(r"\((?:silence|music|applause|laughter)\)", " ", text, flags=re.I)
-    if language == "en":
-        # English-only mode: drop stray CJK runs, which Whisper sometimes
-        # hallucinates when it hears background audio.
+    if strip_cjk is None:
+        strip_cjk = language == "en"
+    if strip_cjk:
+        # Explicit English mode: drop stray CJK runs, which Whisper sometimes
+        # hallucinates when it hears background audio.  Auto mode must keep
+        # them: a short mixed-language segment can be labelled "en" even when
+        # it is actually Chinese.
         text = re.sub(r"[\u3000-\u303f\u3400-\u9fff\uf900-\ufaff\uff00-\uffef]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     text = re.sub(r"([.!?])([A-Z])", r"\1 \2", text)
@@ -231,8 +246,14 @@ class Transcriber:
                     "audio_ms": audio_ms,
                 }
         latency_ms = int((time.perf_counter() - started) * 1000)
+        raw_text = " ".join(seg.text for seg in rows)
         detected = str(getattr(info, "language", "") or requested or "en")
-        text = _clean_text(" ".join(seg.text for seg in rows), detected)
+        if requested is None and detected in ("", "en"):
+            # Auto mode is intentionally all-language.  Short segments are
+            # often mislabelled "en"; use strong scripts as a safety net so
+            # Chinese/Japanese/Korean text is not treated as English.
+            detected = _script_language(raw_text) or detected
+        text = _clean_text(raw_text, detected, strip_cjk=(requested == "en"))
         if not text:
             return {
                 "text": "",
