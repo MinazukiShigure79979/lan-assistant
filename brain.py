@@ -209,7 +209,7 @@ class Brain:
             config.OLLAMA_MODELS_DIR.mkdir(parents=True, exist_ok=True)
             env = os.environ.copy()
             env["OLLAMA_HOST"] = "127.0.0.1:11434"
-            env["OLLAMA_MODELS"] = str(config.OLLAMA_MODELS_DIR)
+            env["OLLAMA_MODELS"] = str(Path(config.OLLAMA_MODELS_DIR).resolve())
             env["OLLAMA_KEEP_ALIVE"] = "30m"
             env["OLLAMA_NUM_PARALLEL"] = "1"
             env.update(hardware.ollama_env(self.settings))
@@ -242,6 +242,7 @@ class Brain:
             if ("3.5" in self.model or "9b" in self.model.lower())
             else config.LLM_MODEL_PATH_25
         )
+        model_path = model_path.resolve()
         if not model_path.exists():
             raise BrainError(f"本地模型文件不存在：{model_path}")
         if model_path.stat().st_size < 100 * 1024 * 1024:
@@ -256,7 +257,7 @@ class Brain:
         )
         env = os.environ.copy()
         env["OLLAMA_HOST"] = "127.0.0.1:11434"
-        env["OLLAMA_MODELS"] = str(config.OLLAMA_MODELS_DIR)
+        env["OLLAMA_MODELS"] = str(Path(config.OLLAMA_MODELS_DIR).resolve())
         self.on_status("loading", "首次使用，正在注册本地模型（约需 1 分钟）…")
         proc = subprocess.run(
             [str(config.OLLAMA_BIN), "create", self.model, "-f", str(modelfile)],
