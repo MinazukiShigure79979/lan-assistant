@@ -6,10 +6,13 @@ direct urlopen appears to have no network even though the browser works.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
+import urllib.parse
 import urllib.request
+from pathlib import Path
 
 _APPLIED = False
 
@@ -38,17 +41,64 @@ def _registry_proxy() -> tuple[str, str]:
         return "", ""
 
 
-def _pac_proxy(url: str) -> str:
+def _pac_text(url: str) -> str:
+    """Read a PAC URL or a local PAC file (some clients use file:///...)."""
+    if os.path.isfile(url):
+        try:
+            return Path(url).read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return ""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme == "file":
+        try:
+            path = urllib.request.url2pathname(parsed.path)
+            if parsed.netloc and parsed.netloc != "localhost":
+                path = f"//{parsed.netloc}{path}"
+            return Path(path).read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return ""
     try:
-        # PAC is served by the local proxy; fetch it without using itself.
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with opener.open(url, timeout=5) as response:
-            text = response.read().decode("utf-8", "replace")
-        match = re.search(r"\bPROXY\s+([A-Za-z0-9_.\-\[\]:]+)", text)
-        if match:
-            return match.group(1)
+            return response.read().decode("utf-8", "replace")
     except Exception:
-        pass
+        return ""
+
+
+def _ssr_config_proxy(pac_path: str) -> str:
+    """A local SSR PAC template contains __PROXY__; read its gui-config.json."""
+    try:
+        directory = Path(pac_path).resolve().parent
+    except Exception:
+        return ""
+    for candidate in (directory, directory.parent):
+        config_path = candidate / "gui-config.json"
+        if not config_path.is_file():
+            continue
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8-sig", errors="replace"))
+            port = int(data.get("localPort", 0) or 0)
+            if 0 < port < 65536:
+                return f"127.0.0.1:{port}"
+        except Exception:
+            continue
+    return ""
+
+
+def _pac_proxy(url: str) -> str:
+    text = _pac_text(url)
+    if not text:
+        return ""
+    match = re.search(r"\bPROXY\s+([A-Za-z0-9_.\-\[\]:]+)", text)
+    if match:
+        return match.group(1)
+    if "__PROXY__" in text:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme == "file":
+            path = urllib.request.url2pathname(parsed.path)
+        else:
+            path = url
+        return _ssr_config_proxy(path)
     return ""
 
 
