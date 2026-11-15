@@ -107,7 +107,7 @@ Windows 安装包见 [GitHub Releases](https://github.com/MinazukiShigure79979/l
 5. 允许手动勾选其它模型
 6. 下载完成后才启动语音识别、语言模型和主界面
 
-CUDA 组件下载失败不会阻止首次设置；程序会自动回退到 CPU。模型下载到 `models/`；如果安装目录不可写，会使用 `%LOCALAPPDATA%\Lan.Assistant\models`。已经装好 Ollama 和模型的本机升级不会重新进入首次设置。
+CUDA 组件下载失败不会阻止首次设置；程序会自动回退到 CPU。之后可以在 **设置 → 全局设置 → GPU 加速组件** 重新下载，完成后重启应用生效。模型下载到 `models/`；如果安装目录不可写，会使用 `%LOCALAPPDATA%\Lan.Assistant\models`。已经装好 Ollama 和模型的本机升级不会重新进入首次设置。
 
 ## 本地服务端口
 

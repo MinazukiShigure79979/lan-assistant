@@ -43,6 +43,7 @@
     sessions: null,
     sessionOpen: null,
     serverPort: 0,
+    cuda: { required: false, available: false, status: "idle", progress: 0, message: "", error: "" },
     version: "",
     displayVersion: "",
     profileDirty: false,
@@ -93,6 +94,10 @@
     setServerPortCustom: $("#setServerPortCustom"),
     serverPortCustomField: $("#serverPortCustomField"),
     currentServerPort: $("#currentServerPort"),
+    cudaBlock: $("#cudaBlock"),
+    cudaStatus: $("#cudaStatus"),
+    cudaError: $("#cudaError"),
+    btnInstallCuda: $("#btnInstallCuda"),
     sessionList: $("#sessionList"),
     sessionSummary: $("#sessionSummary"),
     sessionTypeFilter: $("#sessionTypeFilter"),
@@ -401,6 +406,7 @@
     state.version = data.version || "";
     state.displayVersion = data.display_version || "";
     state.serverPort = Number(data.port || 0);
+    state.cuda = data.cuda || state.cuda;
     if (els.appVersionLabel && state.displayVersion) {
       els.appVersionLabel.textContent = state.displayVersion;
     }
@@ -589,6 +595,10 @@
         }
         break;
       }
+      case "cuda":
+        state.cuda = d || state.cuda;
+        renderCuda();
+        break;
       case "levels":
         state.levels = d;
         renderLevels();
@@ -1224,6 +1234,35 @@
       return part.toUpperCase();
     });
     return parts.join(" + ");
+  }
+
+  function renderCuda() {
+    if (!els.cudaStatus) return;
+    const cuda = state.cuda || {};
+    const button = els.btnInstallCuda;
+    const downloading = cuda.status === "downloading";
+    const available = !!cuda.available;
+    if (button) {
+      button.classList.toggle("hidden", !cuda.required || available || downloading);
+      button.disabled = downloading;
+      button.textContent = downloading
+        ? `下载中 ${Math.round((cuda.progress || 0) * 100)}%`
+        : "下载 CUDA 组件（约 1.3 GB）";
+    }
+    if (!cuda.required) {
+      els.cudaStatus.textContent = "当前设备不是 NVIDIA，不需要 CUDA 加速组件。";
+    } else if (available) {
+      els.cudaStatus.textContent =
+        `CUDA 加速组件已安装；当前识别设备：${cuda.asr_device === "cuda" ? "CUDA" : "CPU（重启后使用 CUDA）"}。`;
+    } else if (downloading) {
+      els.cudaStatus.textContent = cuda.message || "正在下载 CUDA 加速组件…";
+    } else {
+      els.cudaStatus.textContent = "检测到 NVIDIA 显卡，但 CUDA 组件未安装；当前使用 CPU 识别。";
+    }
+    if (els.cudaError) {
+      els.cudaError.textContent = cuda.error || "";
+      els.cudaError.classList.toggle("hidden", !cuda.error);
+    }
   }
 
   function renderHardware() {
@@ -2516,6 +2555,7 @@
     }
     els.setRunAsAdmin.checked = s.run_as_admin === true;
     fillServerPort(s);
+    renderCuda();
     renderDownloadSources(s);
     els.setVoiceHotkey.value = s.voice_hotkey || "ctrl+alt+space";
     els.setVoiceHotkeyHold.value = s.voice_hotkey_hold ? "true" : "false";
@@ -3552,7 +3592,25 @@
         }
       });
     }
-    $("#btnRefreshDevices").addEventListener("click", async () => {
+    async function installCuda() {
+    if (!els.btnInstallCuda) return;
+    els.btnInstallCuda.disabled = true;
+    try {
+      const res = await api("/api/cuda/download", { method: "POST", body: "{}" });
+      state.cuda = res.cuda || state.cuda;
+      renderCuda();
+      toast("CUDA 组件下载中，完成后重启应用生效", "good");
+    } catch (err) {
+      els.btnInstallCuda.disabled = false;
+      toast(err.message, "bad");
+      renderCuda();
+    }
+  }
+
+  if (els.btnInstallCuda) {
+    els.btnInstallCuda.addEventListener("click", installCuda);
+  }
+  $("#btnRefreshDevices").addEventListener("click", async () => {
       els.deviceHint.textContent = "正在刷新音频设备…";
       try {
         await loadDevices();

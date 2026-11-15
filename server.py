@@ -34,6 +34,7 @@ except Exception:
 
 import config
 import audio_cue
+import cuda_runtime
 import diarization
 import hardware
 import language
@@ -508,6 +509,14 @@ class App:
         self.device_names = {"other": "", "me": ""}
         self.session_path: Optional[Path] = None
         self.server_port = DEFAULT_PORT
+        self.cuda_state: dict[str, Any] = {
+            "status": "idle",
+            "progress": 0.0,
+            "message": "",
+            "error": "",
+        }
+        self._cuda_lock = threading.RLock()
+        self._cuda_thread: Optional[threading.Thread] = None
         self._turns_lock = threading.RLock()
         self._asr_queue: queue.Queue = queue.Queue()
         self._partial_queue: queue.Queue = queue.Queue(maxsize=2)
@@ -853,6 +862,77 @@ class App:
             data = dict(self.voice_state)
         data.pop("target_hwnd", None)
         return data
+
+    def cuda_public_state(self) -> dict[str, Any]:
+        required = str(self.hardware.get("profile", "cpu")) == "nvidia"
+        with self._cuda_lock:
+            data = dict(self.cuda_state)
+        data.update(
+            {
+                "required": required,
+                "available": cuda_runtime.is_available(),
+                "asr_device": self.transcriber.device,
+            }
+        )
+        return data
+
+    def start_cuda_download(self) -> bool:
+        if str(self.hardware.get("profile", "cpu")) != "nvidia":
+            return False
+        if cuda_runtime.is_available():
+            return False
+        with self._cuda_lock:
+            if self._cuda_thread is not None and self._cuda_thread.is_alive():
+                return False
+            self.cuda_state.update(
+                {
+                    "status": "downloading",
+                    "progress": 0.0,
+                    "message": "正在下载 CUDA 加速组件…",
+                    "error": "",
+                }
+            )
+            self._cuda_thread = threading.Thread(
+                target=self._cuda_download_worker,
+                name="cuda-component-download",
+                daemon=True,
+            )
+            self._cuda_thread.start()
+        self.bus.publish({"type": "cuda", "data": self.cuda_public_state()})
+        return True
+
+    def _cuda_download_worker(self) -> None:
+        try:
+            def on_progress(value: float, message: str) -> None:
+                with self._cuda_lock:
+                    self.cuda_state.update(
+                        {
+                            "progress": max(0.0, min(1.0, float(value))),
+                            "message": message,
+                        }
+                    )
+                self.bus.publish({"type": "cuda", "data": self.cuda_public_state()})
+
+            cuda_runtime.install(on_progress)
+            with self._cuda_lock:
+                self.cuda_state.update(
+                    {
+                        "status": "done",
+                        "progress": 1.0,
+                        "message": "CUDA 加速组件已安装；重启应用后生效。",
+                        "error": "",
+                    }
+                )
+        except Exception as exc:
+            with self._cuda_lock:
+                self.cuda_state.update(
+                    {
+                        "status": "error",
+                        "message": "CUDA 加速组件下载失败。",
+                        "error": str(exc)[:500],
+                    }
+                )
+        self.bus.publish({"type": "cuda", "data": self.cuda_public_state()})
 
     def _set_voice_state(self, **changes: Any) -> None:
         with self._voice_lock:
@@ -3064,6 +3144,7 @@ $speaker.Dispose()
             "display_version": APP_DISPLAY_VERSION,
             "server_time": time.time(),
             "port": self.server_port,
+            "cuda": self.cuda_public_state(),
             "mode": self.mode,
             "overlay_running": self.overlay_running(),
             "continuation": self.continuation,
@@ -3245,6 +3326,24 @@ class Handler(BaseHTTPRequestHandler):
                         ),
                     },
                     "poll_ms": max(80, min(1000, int(self.app.settings.get("overlay_poll_ms", 150)))),
+                }
+            )
+            return
+        if path == "/api/cuda/status":
+            self._json({"ok": True, "cuda": self.app.cuda_public_state()})
+            return
+        if path == "/api/cuda/download":
+            state = self.app.cuda_public_state()
+            if not state.get("required"):
+                self._error("当前设备不需要 CUDA 加速组件", 400)
+                return
+            started = self.app.start_cuda_download()
+            state = self.app.cuda_public_state()
+            self._json(
+                {
+                    "ok": started or bool(state.get("available"))
+                    or state.get("status") in ("downloading", "done"),
+                    "cuda": state,
                 }
             )
             return
