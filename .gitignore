@@ -21,6 +21,7 @@ htmlcov/
 *.zip
 build/
 dist/
+dist_build/
 *.spec
 !Lan.Assistant.spec
 *.egg-info/
