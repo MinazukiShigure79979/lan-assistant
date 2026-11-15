@@ -321,14 +321,31 @@
   }
 
   async function browseOllamaLocal() {
+    const button = els.browseOllamaLocal;
+    const original = button ? button.textContent : "";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "正在打开…";
+    }
+    if (els.ollamaMessage) {
+      els.ollamaMessage.textContent = "已弹出 Windows 文件选择窗口；如果没有看到，请查看任务栏或本窗口后面。";
+    }
     try {
       const result = await api("/api/dialog/file", { method: "POST", body: "{}" });
       if (result && result.path) {
         els.ollamaLocalPath.value = result.path;
+        if (els.ollamaMessage) {
+          els.ollamaMessage.textContent = `已选择：${result.path}`;
+        }
       }
     } catch (err) {
       els.ollamaError.textContent = err.message;
       els.ollamaError.classList.remove("hidden");
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = original;
+      }
     }
   }
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>首次设置 · Lan.Assistant</title>
-  <link rel="stylesheet" href="/static/setup.css?v=3">
+  <link rel="stylesheet" href="/static/setup.css?v=4">
 </head>
 <body>
   <main class="setup-shell">
@@ -44,7 +44,7 @@
       </div>
       <div class="setup-source-row">
         <label for="ollamaLocalPath">本地 ZIP</label>
-        <input id="ollamaLocalPath" type="text" readonly placeholder="选择已下载的 ollama-windows-amd64.zip">
+        <input id="ollamaLocalPath" type="text" placeholder="选择已下载的 ollama-windows-amd64.zip，也可以直接粘贴路径" autocomplete="off">
         <button id="browseOllamaLocal" class="btn btn-ghost" type="button">浏览…</button>
         <button id="installOllamaLocal" class="btn" type="button">使用本地 ZIP 安装</button>
       </div>
@@ -119,6 +119,6 @@
     </footer>
   </main>
   <script src="/static/i18n.js?v=2"></script>
-  <script src="/static/setup.js?v=5"></script>
+  <script src="/static/setup.js?v=6"></script>
 </body>
 </html>
