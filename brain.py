@@ -560,7 +560,20 @@ class Brain:
         return "\n".join(parts)
 
     # ----------------------------------------------------------------- translate
-    def translate(self, text: str, target: str = "zh", dialogue_context: str = "") -> str:
+    def _terminology_block(self, feature: str) -> str:
+        try:
+            terms = config.vocabulary_terms(config.active_vocabulary(self.settings, feature))
+        except Exception:
+            terms = []
+        if not terms:
+            return ""
+        return (
+            "\n\nTERMINOLOGY (authoritative spelling for names and terms; express them exactly when "
+            "the source clearly refers to them, and never insert a term that was not said):\n"
+            + ", ".join(terms)[:3000]
+        )
+
+    def translate(self, text: str, target: str = "zh", dialogue_context: str = "", vocabulary: str = "") -> str:
         text = (text or "").strip()
         if not text:
             return ""
@@ -591,6 +604,12 @@ class Brain:
             )
         if context:
             system = context + "\n\n" + system
+        if str(vocabulary or "").strip():
+            system += (
+                "\n\nTERMINOLOGY (authoritative spelling for names and terms; keep them exactly when the "
+                "source clearly refers to them):\n"
+                + str(vocabulary)[:3000]
+            )
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": f"<text>{text[:2500]}</text>"},
@@ -628,13 +647,21 @@ class Brain:
         texts: list[str],
         target: str = "zh",
         dialogue_context: str = "",
+        vocabulary: str = "",
     ) -> list[str]:
         """Translate several short turns in one call (used to backfill subtitles)."""
         cleaned = [str(t or "").strip() for t in texts]
         if not cleaned:
             return []
         if len(cleaned) == 1:
-            return [self.translate(cleaned[0], target, dialogue_context=dialogue_context)]
+            return [
+                self.translate(
+                    cleaned[0],
+                    target,
+                    dialogue_context=dialogue_context,
+                    vocabulary=vocabulary,
+                )
+            ]
         labels = {
             "zh": "natural, colloquial Simplified Chinese",
             "en": "natural English",
@@ -672,6 +699,12 @@ class Brain:
             )
         if context:
             system = context + "\n\n" + system
+        if str(vocabulary or "").strip():
+            system += (
+                "\n\nTERMINOLOGY (authoritative spelling for names and terms; keep them exactly when the "
+                "source clearly refers to them):\n"
+                + str(vocabulary)[:3000]
+            )
         messages = [
             {
                 "role": "system",
@@ -697,12 +730,17 @@ class Brain:
         for index, value in enumerate(result):
             if not value:
                 try:
-                    result[index] = self.translate(cleaned[index], target, dialogue_context=dialogue_context)
+                    result[index] = self.translate(
+                        cleaned[index],
+                        target,
+                        dialogue_context=dialogue_context,
+                        vocabulary=vocabulary,
+                    )
                 except Exception:
                     result[index] = ""
         return result
 
-    def translate_to(self, text: str, target: str = "zh") -> str:
+    def translate_to(self, text: str, target: str = "zh", vocabulary: str = "") -> str:
         """Translate a short utterance into an explicit target language."""
         text = (text or "").strip()
         if not text:
@@ -724,6 +762,12 @@ class Brain:
             "Preserve tone, names, numbers and implied meaning. Do not explain, comment, answer, or add "
             'anything else. Return only JSON: {"text":"..."}'
         )
+        if str(vocabulary or "").strip():
+            system += (
+                "\n\nTERMINOLOGY (authoritative spelling for names and terms; keep them exactly when the "
+                "source clearly refers to them):\n"
+                + str(vocabulary)[:3000]
+            )
         content = self.chat(
             [
                 {"role": "system", "content": system},
@@ -774,7 +818,7 @@ class Brain:
         )
         if str(vocabulary or "").strip():
             system += (
-                "\n\nVOICE VOCABULARY (authoritative spelling for names/terms; apply only when the "
+                "\n\nTERMINOLOGY (authoritative spelling for names/terms; apply only when the "
                 "recognized word is clearly the same term; do not insert terms that were not spoken):\n"
                 + str(vocabulary)[:3000]
             )
@@ -909,6 +953,7 @@ class Brain:
 
     def meeting_chunk_summary(self, text: str, language: str = "zh") -> str:
         label = _meeting_language_label(language)
+        vocabulary = self._terminology_block("meeting")
         content = self.chat(
             [
                 {
@@ -917,6 +962,7 @@ class Brain:
                         f"You are a meeting secretary. Summarize this section of a meeting transcript in {label}. "
                         "Keep names, numbers, decisions and action items. Use short bullet points. "
                         "Do not invent anything. Output only the bullets."
+                        + vocabulary
                     ),
                 },
                 {"role": "user", "content": text[:9000]},
@@ -973,6 +1019,7 @@ Rules:
 - "open_questions" are unresolved questions.
 - Preserve names, product names and terminology.
 Return JSON only in the required shape."""
+        system += self._terminology_block("meeting")
         user = f"CONTEXT:\n{context.strip() or '(none)'}\n\nTRANSCRIPT:\n{transcript[:24000]}"
         started = time.perf_counter()
         content = self.chat(
@@ -1303,6 +1350,7 @@ LATEST: "What made you focus on onboarding first?"
 Return JSON only in this exact shape:
 {{"options":[{{"reply":"...","zh":"...","tone":"坦诚"}}]}}
 No markdown, no note, no text outside the JSON."""
+        system += self._terminology_block("call")
 
         if opening:
             latest_text = "(The call is just starting. Suggest natural opening lines that fit the goal and relationship.)"

@@ -263,15 +263,15 @@
           <section class="voice-card">
             <header class="voice-card-head">
               <div>
-                <div class="section-kicker">VOICE VOCABULARY</div>
-                <h3>语音词库</h3>
+                <div class="section-kicker">VOCABULARY</div>
+                <h3>全局词库</h3>
               </div>
               <button type="button" class="btn btn-tiny" id="btnEditVoiceVocabulary">编辑词库</button>
             </header>
             <div class="voice-card-body">
               <div class="voice-card-meta" id="voiceVocabularyMeta">还没有词库</div>
               <div class="voice-vocab-chips" id="voiceVocabularyPreview"></div>
-              <p class="voice-card-hint">专名、公司名、技术术语和反复听错的词；一行一个，支持「错词=正确词」。</p>
+              <p class="voice-card-hint">全局共用；可在 设置 → 全局设置 → 全局词库 里编辑，并分别控制各工作区是否使用。</p>
             </div>
           </section>
 
@@ -467,6 +467,29 @@
               <button type="button" class="btn btn-tiny" id="btnInstallCudaLocal">使用本地组件</button>
             </div>
           </div>
+
+          <div class="settings-block" id="globalVocabularyBlock">
+            <div class="settings-title">
+              <div>
+                <h3>全局词库</h3>
+                <p class="settings-block-desc">专名、公司名、技术术语和反复听错的词。所有工作区共用这一份词库。</p>
+              </div>
+            </div>
+            <div class="form-grid compact">
+              <label class="field">
+                <span>词条（每行一个，错误=正确）</span>
+                <textarea id="setGlobalVocabulary" rows="6" maxlength="8000" placeholder="Lan.Assistant&#10;Project Alpha&#10;Acme 公司&#10;回退=rollback"></textarea>
+                <small class="field-note">规范词用于 Whisper 识别偏置、术语替换和模型提示；别名写成「错词=正确词」。只放专名、术语和反复出错的词。</small>
+              </label>
+            </div>
+            <div class="check-grid">
+              <label class="check"><input type="checkbox" id="setVocabUseCall" checked><span><b>通话副驾</b><small>ASR 提示、识别结果替换和回答术语</small></span></label>
+              <label class="check"><input type="checkbox" id="setVocabUseTranslate" checked><span><b>听读翻译</b><small>ASR 提示、字幕识别替换和翻译术语</small></span></label>
+              <label class="check"><input type="checkbox" id="setVocabUseVoice" checked><span><b>语音输入</b><small>识别偏置、自动校对和翻译</small></span></label>
+              <label class="check"><input type="checkbox" id="setVocabUseMeeting" checked><span><b>会议纪要</b><small>ASR 提示、识别替换和纪要术语</small></span></label>
+            </div>
+            <div class="device-hint" id="globalVocabularyMeta">还没有词库</div>
+          </div>
         </div>
 
         <div class="settings-section" data-settings-tab="common">
@@ -567,7 +590,7 @@
             <div class="settings-title">
               <div>
                 <h3>识别与场景</h3>
-                <p class="settings-block-desc">设置通话语言、断句速度和场景词库；词库会影响对方原话的识别和术语替换。</p>
+                <p class="settings-block-desc">设置通话语言和断句速度；全局词库在「全局设置」中配置，并可为通话单独开关。</p>
               </div>
             </div>
             <div class="form-grid compact">
@@ -590,11 +613,6 @@
                   <option value="1000">1.0 秒（更稳）</option>
                   <option value="1200">1.2 秒（嘈杂环境）</option>
                 </select>
-              </label>
-              <label class="field">
-                <span>通话场景词库（每行一个，错误=正确）</span>
-                <textarea id="setCallVocabulary" rows="4" maxlength="8000" placeholder="Project Alpha&#10;Acme 公司&#10;release-window&#10;回退=rollback"></textarea>
-                <small class="field-note">用于本次通话的 ASR 提示和精确替换。只放公司、项目、人名、技术术语；换场景时改这里。</small>
               </label>
               <label class="field">
                 <span>麦克风增益 <output id="setMicGainValue">1.0×</output></span>
@@ -1096,22 +1114,6 @@
               <label class="check"><input type="checkbox" id="setVoiceAutoProofread" checked><span><b>自动文字校对</b><small>用当前模型修正明显同音字/错别字，不改变原意；会增加一点生成时间</small></span></label>
             </div>
           </div>
-
-          <div class="settings-block">
-            <div class="settings-title">
-              <div>
-                <h3>语音词库</h3>
-                <p class="settings-block-desc">把专有名词、项目名和经常听错的词交给识别模型和自动校对。</p>
-              </div>
-            </div>
-            <div class="form-grid compact">
-              <label class="field">
-                <span>语音词库（每行一个，错误=正确）</span>
-                <textarea id="setVoiceVocabulary" rows="5" maxlength="8000" placeholder="Carmy&#10;Lan.Assistant&#10;交对=校对"></textarea>
-                <small class="field-note">规范词用于 Whisper 识别偏置和自动校对；别名写成「错词=正确词」。只放专名、术语和反复出错的词。</small>
-              </label>
-            </div>
-          </div>
         </div>
 
         <div class="settings-section" data-settings-tab="meeting">
@@ -1347,6 +1349,6 @@
   <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 
   <script src="/static/i18n.js?v=24"></script>
-  <script src="/static/app.js?v=91"></script>
+  <script src="/static/app.js?v=92"></script>
 </body>
 </html>

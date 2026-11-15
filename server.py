@@ -1141,7 +1141,7 @@ class App:
                 if voice_id and int(self.voice_state.get("id", 0) or 0) != voice_id:
                     return
             input_language = str(self.settings.get("voice_input_language", "zh") or "zh")
-            vocab_entries = config.parse_vocabulary(str(self.settings.get("voice_vocabulary", "") or ""))
+            vocab_entries = config.active_vocabulary(self.settings, "voice")
             result = self.transcriber.transcribe(
                 pcm,
                 partial=False,
@@ -1166,7 +1166,7 @@ class App:
                     corrected = self.brain.proofread_text(
                         text,
                         detected,
-                        vocabulary=str(self.settings.get("voice_vocabulary", "") or ""),
+                        vocabulary=config.feature_vocabulary_text(self.settings, "voice"),
                     )
                     if corrected and corrected != text:
                         text = corrected
@@ -1176,7 +1176,11 @@ class App:
             translated = ""
             if target_language in ("zh", "en", "ja", "ko") and target_language != detected:
                 try:
-                    translated = self.brain.translate_to(text, target_language)
+                    translated = self.brain.translate_to(
+                        text,
+                        target_language,
+                        vocabulary=config.feature_vocabulary_text(self.settings, "voice"),
+                    )
                 except Exception:
                     translated = ""
             with self._voice_lock:
@@ -1478,11 +1482,12 @@ class App:
 
     def _asr_prompt(self, language: str) -> str:
         prompt = self._initial_prompt(language)
-        if self.mode == "call":
-            entries = config.parse_vocabulary(str(self.settings.get("call_vocabulary", "") or ""))
-            terms = config.vocabulary_terms(entries)
-            if terms:
-                prompt = (prompt + " Call terms: " + ", ".join(terms)).strip()
+        feature = str(self.mode or "call")
+        entries = config.active_vocabulary(self.settings, feature)
+        terms = config.vocabulary_terms(entries)
+        if terms:
+            label = "Call terms" if feature == "call" else "Terms"
+            prompt = (prompt + f" {label}: " + ", ".join(terms)).strip()
         return prompt[:900]
 
     def _asr_worker(self) -> None:
@@ -1522,11 +1527,9 @@ class App:
                 )
                 if result.get("text"):
                     result["text"] = self._correct_media_terms(str(result["text"]))
-                    if self.mode == "call":
-                        entries = config.parse_vocabulary(
-                            str(self.settings.get("call_vocabulary", "") or "")
-                        )
-                        result["text"] = config.apply_vocabulary(str(result["text"]), entries)
+                entries = config.active_vocabulary(self.settings, str(self.mode or "call"))
+                if entries:
+                    result["text"] = config.apply_vocabulary(str(result["text"]), entries)
                 if result.get("error"):
                     self._final_pending.clear()
                     self._emit_error("asr", str(result["error"]))
@@ -2204,6 +2207,7 @@ class App:
                     dialogue_context=self._subtitle_dialogue_context(
                         limit=max(0, min(8, int(self.settings.get("partial_context_turns", 4))))
                     ),
+                    vocabulary=config.feature_vocabulary_text(self.settings, "translate"),
                 )
             except Exception:
                 continue
@@ -2245,6 +2249,7 @@ class App:
                 [str(t.get("en", "")) for t in pending],
                 target,
                 dialogue_context=dialogue_context,
+                vocabulary=config.feature_vocabulary_text(self.settings, "translate"),
             )
         except Exception as exc:
             self._emit_error("translate", f"翻译暂时失败：{exc}")

@@ -156,6 +156,44 @@ def vocabulary_terms(entries: list[tuple[str, str]] | None = None) -> list[str]:
     return terms[:40]
 
 
+VOCAB_FEATURES = ("call", "translate", "voice", "meeting")
+
+
+def _migrate_vocabulary(settings: dict[str, Any]) -> None:
+    """Move old per-workspace vocabularies into the global one once."""
+    if not str(settings.get("global_vocabulary", "") or "").strip():
+        parts: list[str] = []
+        for key in ("call_vocabulary", "voice_vocabulary"):
+            value = str(settings.get(key, "") or "").strip()
+            if value and value not in parts:
+                parts.append(value)
+        if parts:
+            settings["global_vocabulary"] = "\n".join(parts)
+            # Legacy per-workspace fields must not re-populate the global
+            # vocabulary after the user edits or clears it.
+            settings["call_vocabulary"] = ""
+            settings["voice_vocabulary"] = ""
+    for feature in VOCAB_FEATURES:
+        settings[f"vocab_use_{feature}"] = bool(settings.get(f"vocab_use_{feature}", True))
+
+
+def vocabulary_enabled(settings: dict[str, Any], feature: str) -> bool:
+    feature = str(feature or "").strip()
+    if feature not in VOCAB_FEATURES:
+        return False
+    return bool(settings.get(f"vocab_use_{feature}", True))
+
+
+def feature_vocabulary_text(settings: dict[str, Any], feature: str) -> str:
+    if not vocabulary_enabled(settings, feature):
+        return ""
+    return str(settings.get("global_vocabulary", "") or "")
+
+
+def active_vocabulary(settings: dict[str, Any], feature: str) -> list[tuple[str, str]]:
+    return parse_vocabulary(feature_vocabulary_text(settings, feature))
+
+
 DEFAULT_PROFILE: dict[str, Any] = {
     "name": "",
     "job": "",
@@ -200,6 +238,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {    "other_device": None,
     "silence_ms": 750,
     "call_silence_ms": 750,
     "call_vocabulary": "",
+    "global_vocabulary": "",
+    "vocab_use_call": True,
+    "vocab_use_translate": True,
+    "vocab_use_voice": True,
+    "vocab_use_meeting": True,
     "call_auto_summary": True,
     "long_passage_delay_ms": 2800,
     "max_segment_s": 20,
@@ -414,6 +457,7 @@ def _apply_api_profile(settings: dict[str, Any], profile: dict[str, Any]) -> dic
 
 def load_settings() -> dict[str, Any]:
     merged = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
+    _migrate_vocabulary(merged)
     raw_file = _raw_settings_file()
     profile = api_secrets.load_profile()
     legacy = any(key in raw_file for key in _API_FIELDS)
@@ -451,7 +495,9 @@ def clear_api_profile(settings: dict[str, Any]) -> dict[str, Any]:
 
 
 def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
-    clean = _deep_merge(DEFAULT_SETTINGS, settings)
+    incoming = dict(settings)
+    _migrate_vocabulary(incoming)
+    clean = _deep_merge(DEFAULT_SETTINGS, incoming)
     try:
         clean["suggest_count"] = max(1, min(4, int(clean.get("suggest_count", 3))))
         clean["vad_aggressiveness"] = max(0, min(3, int(clean.get("vad_aggressiveness", 2))))
@@ -460,6 +506,9 @@ def save_settings(settings: dict[str, Any]) -> dict[str, Any]:
             300, min(1600, int(clean.get("call_silence_ms", clean.get("silence_ms", 750))))
         )
         clean["call_vocabulary"] = str(clean.get("call_vocabulary", "") or "")[:8000]
+        clean["global_vocabulary"] = str(clean.get("global_vocabulary", "") or "")[:8000]
+        for feature in VOCAB_FEATURES:
+            clean[f"vocab_use_{feature}"] = bool(clean.get(f"vocab_use_{feature}", True))
         clean["call_auto_summary"] = bool(clean.get("call_auto_summary", True))
         clean["long_passage_delay_ms"] = max(
             800, min(6000, int(clean.get("long_passage_delay_ms", 2800)))

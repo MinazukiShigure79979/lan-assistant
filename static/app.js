@@ -151,7 +151,12 @@
     setCustomModelPath: $("#setCustomModelPath"),
     setCustomModelSource: $("#setCustomModelSource"),
     setCallAsrLanguage: $("#setCallAsrLanguage"),
-    setCallVocabulary: $("#setCallVocabulary"),
+    setGlobalVocabulary: $("#setGlobalVocabulary"),
+    setVocabUseCall: $("#setVocabUseCall"),
+    setVocabUseTranslate: $("#setVocabUseTranslate"),
+    setVocabUseVoice: $("#setVocabUseVoice"),
+    setVocabUseMeeting: $("#setVocabUseMeeting"),
+    globalVocabularyMeta: $("#globalVocabularyMeta"),
     setCallAutoSummary: $("#setCallAutoSummary"),
     setTranslateAsrLanguage: $("#setTranslateAsrLanguage"),
     setTranslateTargetLanguage: $("#setTranslateTargetLanguage"),
@@ -205,7 +210,6 @@
     setVoiceFocusSkipFullscreen: $("#setVoiceFocusSkipFullscreen"),
     setVoiceAutoPunctuation: $("#setVoiceAutoPunctuation"),
     setVoiceAutoProofread: $("#setVoiceAutoProofread"),
-    setVoiceVocabulary: $("#setVoiceVocabulary"),
     setVoiceFocusSilence: $("#setVoiceFocusSilence"),
     setVoiceFocusTitles: $("#setVoiceFocusTitles"),
     voiceHotkeyText: $("#voiceHotkeyText"),
@@ -1318,7 +1322,7 @@
   }
 
   function vocabularyEntries() {
-    const raw = String((state.settings && state.settings.voice_vocabulary) || "");
+    const raw = String((state.settings && state.settings.global_vocabulary) || "");
     const entries = [];
     for (const line of raw.split(/\r?\n/)) {
       const value = line.trim();
@@ -1337,6 +1341,17 @@
     els.voiceVocabularyMeta.textContent = entries.length
       ? `${unique.length} 个规范词 · ${entries.length} 条规则`
       : "还没有词库";
+    if (els.globalVocabularyMeta) {
+      const enabled = [
+        state.settings && state.settings.vocab_use_call !== false ? "通话" : "",
+        state.settings && state.settings.vocab_use_translate !== false ? "听读" : "",
+        state.settings && state.settings.vocab_use_voice !== false ? "语音" : "",
+        state.settings && state.settings.vocab_use_meeting !== false ? "会议" : "",
+      ].filter(Boolean);
+      els.globalVocabularyMeta.textContent = entries.length
+        ? `${unique.length} 个规范词 · ${entries.length} 条规则；启用：${enabled.join(" / ") || "无"}`
+        : "还没有词库";
+    }
     els.voiceVocabularyPreview.replaceChildren();
     if (!entries.length) {
       els.voiceVocabularyPreview.appendChild(
@@ -2514,7 +2529,6 @@
     els.setEchoGuard.checked = s.echo_guard !== false;
     $("#setSuggestCount").value = String(s.suggest_count || 2);
     $("#setCallSilenceMs").value = String(s.call_silence_ms || s.silence_ms || 750);
-    els.setCallVocabulary.value = s.call_vocabulary || "";
     els.setCallAutoSummary.checked = s.call_auto_summary !== false;
     els.setLongPassageDelay.value = String(s.long_passage_delay_ms || 2800);
     const gain = Number(s.mic_gain || 1);
@@ -2575,7 +2589,11 @@
     els.setVoiceFocusSkipFullscreen.checked = s.voice_focus_skip_fullscreen !== false;
     els.setVoiceAutoPunctuation.checked = s.voice_auto_punctuation !== false;
     els.setVoiceAutoProofread.checked = s.voice_auto_proofread !== false;
-    els.setVoiceVocabulary.value = s.voice_vocabulary || "";
+    if (els.setGlobalVocabulary) els.setGlobalVocabulary.value = s.global_vocabulary || "";
+    if (els.setVocabUseCall) els.setVocabUseCall.checked = s.vocab_use_call !== false;
+    if (els.setVocabUseTranslate) els.setVocabUseTranslate.checked = s.vocab_use_translate !== false;
+    if (els.setVocabUseVoice) els.setVocabUseVoice.checked = s.vocab_use_voice !== false;
+    if (els.setVocabUseMeeting) els.setVocabUseMeeting.checked = s.vocab_use_meeting !== false;
     els.setVoiceFocusSilence.value = String(s.voice_focus_silence_ms || 1200);
     els.setVoiceFocusTitles.value = s.voice_focus_titles || "DeepSeek Harness";
     setMediaPresetState("已从本机载入 · 修改会自动保存");
@@ -3138,7 +3156,11 @@
     payload.echo_guard = els.setEchoGuard.checked;
     payload.suggest_count = Number($("#setSuggestCount").value);
     payload.call_silence_ms = Number($("#setCallSilenceMs").value);
-    payload.call_vocabulary = els.setCallVocabulary.value.trim();
+    payload.global_vocabulary = els.setGlobalVocabulary ? els.setGlobalVocabulary.value.trim() : "";
+    payload.vocab_use_call = els.setVocabUseCall ? els.setVocabUseCall.checked : true;
+    payload.vocab_use_translate = els.setVocabUseTranslate ? els.setVocabUseTranslate.checked : true;
+    payload.vocab_use_voice = els.setVocabUseVoice ? els.setVocabUseVoice.checked : true;
+    payload.vocab_use_meeting = els.setVocabUseMeeting ? els.setVocabUseMeeting.checked : true;
     payload.call_auto_summary = els.setCallAutoSummary.checked;
     payload.long_passage_delay_ms = Number(els.setLongPassageDelay.value);
     payload.mic_gain = Number(els.setMicGain.value);
@@ -3192,7 +3214,6 @@
     payload.voice_focus_skip_fullscreen = els.setVoiceFocusSkipFullscreen.checked;
     payload.voice_auto_punctuation = els.setVoiceAutoPunctuation.checked;
     payload.voice_auto_proofread = els.setVoiceAutoProofread.checked;
-    payload.voice_vocabulary = els.setVoiceVocabulary.value.trim();
     payload.voice_focus_silence_ms = Number(els.setVoiceFocusSilence.value);
     payload.voice_focus_titles = els.setVoiceFocusTitles.value.trim();
     if (payload.diarization_enabled) {
@@ -3497,7 +3518,7 @@
       }
     });
     if (els.btnEditVoiceVocabulary) {
-      els.btnEditVoiceVocabulary.addEventListener("click", () => openSettings("voice"));
+      els.btnEditVoiceVocabulary.addEventListener("click", () => openSettings("common"));
     }
     if (els.btnClearVoiceHistory) {
       els.btnClearVoiceHistory.addEventListener("click", async () => {
