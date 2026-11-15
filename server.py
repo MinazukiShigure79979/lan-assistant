@@ -3256,7 +3256,14 @@ $speaker.Dispose()
         except Exception:
             pass
         try:
-            self.voice_overlay_proc and self.voice_overlay_proc.terminate()
+            proc = self.voice_overlay_proc
+            self.voice_overlay_proc = None
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except Exception:
+                    proc.kill()
         except Exception:
             pass
         try:
@@ -3276,6 +3283,10 @@ $speaker.Dispose()
         try:
             self._asr_queue.put_nowait(None)
             self._partial_queue.put_nowait(None)
+        except Exception:
+            pass
+        try:
+            close_ui_windows()
         except Exception:
             pass
 
@@ -4274,6 +4285,49 @@ def _close_stale_ui(port: int) -> None:
         user32.EnumWindows(_callback, 0)
     except Exception:
         pass
+
+
+def _close_ui_windows() -> None:
+    """Close main/setup browser windows when the tray app exits."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def _callback(hwnd, _lparam):
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length <= 0:
+                return True
+            buffer = ctypes.create_unicode_buffer(length + 2)
+            user32.GetWindowTextW(hwnd, buffer, length + 2)
+            title = buffer.value.strip()
+            lower = title.lower()
+            if "lan.assistant" not in lower:
+                return True
+            # Main window uses the invisible title marker; the first-run
+            # setup page uses "首次设置 · Lan.Assistant".
+            if APP_WINDOW_TITLE_MARKER not in title and "首次设置" not in title:
+                return True
+            klass = ctypes.create_unicode_buffer(128)
+            user32.GetClassNameW(hwnd, klass, 128)
+            if klass.value in ("Chrome_WidgetWin_1", "MozillaWindowClass"):
+                user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+            return True
+
+        user32.EnumWindows(_callback, 0)
+    except Exception:
+        pass
+
+
+def close_ui_windows() -> None:
+    """Public shutdown hook used by App.shutdown()."""
+    _close_ui_windows()
 
 
 def _focus_existing_ui(port: int = 0) -> bool:
