@@ -631,7 +631,7 @@ class GlobalHotkey:
         self._thread_id = 0
         self._ready = threading.Event()
         self._lock = threading.Lock()
-        self._last_fire = 0.0
+        self._armed = True
 
     def start(self) -> bool:
         self.stop()
@@ -641,6 +641,19 @@ class GlobalHotkey:
         self._thread.start()
         self._ready.wait(timeout=2.0)
         return not self.error
+
+    def _wait_release(self, vk: int) -> None:
+        user32 = ctypes.windll.user32
+        while True:
+            try:
+                if not (int(user32.GetAsyncKeyState(vk)) & 0x8000):
+                    time.sleep(0.04)
+                    self._armed = True
+                    return
+            except Exception:
+                self._armed = True
+                return
+            time.sleep(0.02)
 
     def _run(self) -> None:
         user32 = ctypes.windll.user32
@@ -657,10 +670,18 @@ class GlobalHotkey:
             msg = ctypes.wintypes.MSG()
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
                 if msg.message == WM_HOTKEY:
-                    now = time.monotonic()
-                    if now - self._last_fire < 0.45:
+                    if not self._armed:
+                        # RegisterHotKey can post auto-repeat messages while
+                        # the key is held.  Do not turn one press into a
+                        # start/stop/start sequence.
                         continue
-                    self._last_fire = now
+                    self._armed = False
+                    threading.Thread(
+                        target=self._wait_release,
+                        args=(vk,),
+                        name="voice-hotkey-release",
+                        daemon=True,
+                    ).start()
                     try:
                         self.callback()
                     except Exception:

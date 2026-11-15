@@ -1373,6 +1373,11 @@ class App:
                     self._emit_error("asr", self.transcriber.error or "语音识别模型未就绪")
                 continue
             try:
+                print(
+                    f"[asr] transcribe start speaker={item.get('speaker', '')} "
+                    f"lang={self._asr_language()}",
+                    flush=True,
+                )
                 result = self.transcriber.transcribe(
                     item["pcm"],
                     partial=False,

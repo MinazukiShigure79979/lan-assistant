@@ -15,6 +15,9 @@ def setup_cuda_dlls() -> None:
         return
     _configured = True
     roots: list[Path] = []
+    if getattr(sys, "frozen", False):
+        # PyInstaller puts the collected nvidia runtime under _internal/nvidia.
+        roots.append(Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)))
     try:
         roots.extend(Path(p) for p in site.getsitepackages())
     except Exception:
