@@ -6,6 +6,8 @@ import site
 import sys
 from pathlib import Path
 
+import config
+
 _configured = False
 
 
@@ -14,9 +16,9 @@ def setup_cuda_dlls() -> None:
     if _configured or sys.platform != "win32":
         return
     _configured = True
-    roots: list[Path] = []
+    roots: list[Path] = [config.LOCAL_APP_DIR / "cuda"]
     if getattr(sys, "frozen", False):
-        # PyInstaller puts the collected nvidia runtime under _internal/nvidia.
+        # Older builds may still have the runtime under _internal/nvidia.
         roots.append(Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)))
     try:
         roots.extend(Path(p) for p in site.getsitepackages())

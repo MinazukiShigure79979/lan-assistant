@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import config
+import cuda_runtime
 import hardware
 import models
 import version
@@ -191,6 +192,7 @@ class SetupManager:
         self._error = ""
         self._installing_ollama = False
         self._downloading = False
+        self._cuda_error = ""
         self._downloads: dict[str, dict[str, Any]] = {}
         self._ollama_source_url = OLLAMA_ZIP_URL
         self._hardware: dict[str, Any] = dict(getattr(app, "hardware", {}) or {})
@@ -294,6 +296,11 @@ class SetupManager:
                 },
                 "ollama_sources": [dict(item) for item in OLLAMA_SOURCES],
                 "ollama_source_url": self._ollama_source_url,
+                "cuda": {
+                    "required": str(self._hardware.get("profile", "cpu")) == "nvidia",
+                    "available": cuda_runtime.is_available(),
+                    "error": self._cuda_error,
+                },
                 "hardware": self._hardware,
                 "recommended": dict(self._recommended),
                 "whisper": [dict(row) for row in self._whisper],
@@ -353,12 +360,15 @@ class SetupManager:
     def _install_ollama_job(self) -> None:
         try:
             self._install_ollama()
+            self._install_cuda_if_needed()
             with self._lock:
                 self._installing_ollama = False
                 self._stage = "models"
                 self._progress = 0.0
                 self._message = "Ollama 安装完成。请选择要下载的模型。"
                 self._busy = False
+                if self._cuda_error:
+                    self._message = f"将使用 CPU：{self._cuda_error}"
             self._publish()
         except Exception as exc:
             with self._lock:
@@ -367,6 +377,30 @@ class SetupManager:
                 self._stage = "error"
                 self._error = f"Ollama 安装失败：{exc}"
                 self._message = "可以重试，或手动安装 Ollama 后点重试。"
+            self._publish()
+
+    def _install_cuda_if_needed(self) -> None:
+        profile = self._detect_hardware()
+        if str(profile.get("profile", "cpu")) != "nvidia":
+            return
+        if cuda_runtime.is_available():
+            return
+        self._set(
+            _progress=0.86,
+            _message="检测到 NVIDIA 显卡，正在下载 CUDA 加速组件（约 1.3 GB）…",
+        )
+        self._publish()
+        try:
+            def on_progress(value: float, message: str) -> None:
+                self._set(_progress=0.86 + max(0.0, min(1.0, value)) * 0.12, _message=message)
+                self._publish()
+
+            cuda_runtime.install(on_progress)
+            self._cuda_error = ""
+        except Exception as exc:
+            # Keep the app usable on CPU if the optional runtime cannot be fetched.
+            self._cuda_error = f"CUDA 加速组件下载失败：{exc}"
+            self._set(_message=self._cuda_error + "；将继续使用 CPU。")
             self._publish()
 
     def _ollama_candidates(self) -> list[str]:

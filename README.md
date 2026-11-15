@@ -98,14 +98,16 @@ Windows 安装包见 [GitHub Releases](https://github.com/MinazukiShigure79979/l
 
 ## 首次启动（安装包预置）
 
-以后的安装包只包含程序，不包含 Ollama 和模型。首次启动会进入设置页：
+以后的安装包只包含程序，不包含 Ollama、模型或 CUDA 运行库。首次启动会进入设置页：
 
 1. 在首次设置页选择 Ollama 下载源（官方 / GitHub / 自定义 ZIP），点击下载便携版到 `%LOCALAPPDATA%\Lan.Assistant\ollama`（不需要管理员权限）
-2. 根据当前电脑自动勾选一个推荐 Whisper 和一个推荐 Qwen 模型
-3. 允许手动勾选其它模型
-4. 下载完成后才启动语音识别、语言模型和主界面
+2. **检测到 NVIDIA 显卡时**，自动下载约 1.3 GB 的 CUDA/cuDNN 加速组件到 `%LOCALAPPDATA%\Lan.Assistant\cuda`
+3. 只有核显或纯 CPU 的电脑会跳过 CUDA 下载，直接使用 CPU 识别
+4. 根据当前电脑自动勾选一个推荐 Whisper 和一个推荐 Qwen 模型
+5. 允许手动勾选其它模型
+6. 下载完成后才启动语音识别、语言模型和主界面
 
-模型下载到 `models/`；如果安装目录不可写，会使用 `%LOCALAPPDATA%\Lan.Assistant\models`。已经装好 Ollama 和模型的本机升级不会重新进入首次设置。
+CUDA 组件下载失败不会阻止首次设置；程序会自动回退到 CPU。模型下载到 `models/`；如果安装目录不可写，会使用 `%LOCALAPPDATA%\Lan.Assistant\models`。已经装好 Ollama 和模型的本机升级不会重新进入首次设置。
 
 ## 本地服务端口
 

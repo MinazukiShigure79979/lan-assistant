@@ -1,8 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller recipe for Lan.Assistant (onedir, no bundled models/Ollama)."""
 import os
-import site
-from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all
 
@@ -30,6 +28,8 @@ hiddenimports = [
     "voice_input",
     "session_store",
     "log_utils",
+    "cuda_env",
+    "cuda_runtime",
     "audio_cue",
     "restart_app",
     "pystray._win32",
@@ -52,31 +52,6 @@ for package in ("faster_whisper", "ctranslate2", "pyaudiowpatch", "webrtcvad", "
         # A missing optional dependency should fail later with a useful
         # runtime error rather than making the spec itself unreadable.
         pass
-
-# CTranslate2 loads cuBLAS/cuDNN through the NVIDIA wheels on the source
-# machine.  A frozen app does not have those site-packages, so copy the
-# runtime DLLs and let cuda_env.py add their directory to the DLL search path.
-_seen_nvidia: set[str] = set()
-_nvidia_roots = []
-try:
-    _nvidia_roots.extend(Path(p) for p in site.getsitepackages())
-except Exception:
-    pass
-try:
-    _nvidia_roots.append(Path(site.getusersitepackages()))
-except Exception:
-    pass
-for _root in _nvidia_roots:
-    for _sub in ("cublas/bin", "cudnn/bin", "cuda_nvrtc/bin", "cuda_runtime/bin"):
-        _dir = _root / "nvidia" / _sub
-        if not _dir.is_dir():
-            continue
-        for _dll in _dir.glob("*.dll"):
-            _key = str(_dll).lower()
-            if _key in _seen_nvidia:
-                continue
-            _seen_nvidia.add(_key)
-            binaries.append((str(_dll), f"nvidia/{_sub}"))
 
 version_file = os.environ.get("LAN_BUILD_VERSION_FILE") or None
 

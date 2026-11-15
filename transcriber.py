@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional
 import numpy as np
 
 import config
+import cuda_runtime
 from cuda_env import setup_cuda_dlls
 
 from faster_whisper import WhisperModel  # noqa: E402
@@ -152,10 +153,17 @@ class Transcriber:
             return
 
         attempts: list[tuple[str, str]] = []
+        cuda_ready = False
         if self.requested_device in ("auto", "cuda"):
             setup_cuda_dlls()
-        if self.requested_device in ("auto", "cuda"):
+            cuda_ready = cuda_runtime.is_available()
+        if cuda_ready:
             attempts.append(("cuda", "float16"))
+        elif self.requested_device in ("auto", "cuda"):
+            self.on_status(
+                "loading",
+                "CUDA 加速组件未安装，正在使用 CPU 识别；可在模型设置下载 CUDA 组件。",
+            )
         attempts.append(("cpu", "int8"))
         last_error = ""
         for device, compute_type in attempts:

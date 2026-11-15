@@ -17,6 +17,7 @@
     ollamaCustomUrl: $("#ollamaCustomUrl"),
     installOllama: $("#installOllama"),
     hardwareLine: $("#hardwareLine"),
+    cudaLine: $("#cudaLine"),
     whisperList: $("#whisperList"),
     llmList: $("#llmList"),
     whisperCount: $("#whisperCount"),
@@ -167,6 +168,18 @@
     els.hardwareLine.textContent = parts.length
       ? `本机：${parts.join(" · ")}`
       : "未检测到详细硬件信息，将按默认配置推荐。";
+    const cuda = state.cuda || {};
+    if (els.cudaLine) {
+      if (!cuda.required) {
+        els.cudaLine.textContent = "";
+      } else if (cuda.available) {
+        els.cudaLine.textContent = "CUDA 加速组件已安装，语音识别将使用 GPU。";
+      } else if (cuda.error) {
+        els.cudaLine.textContent = `${cuda.error} 将使用 CPU 识别。`;
+      } else {
+        els.cudaLine.textContent = "检测到 NVIDIA 显卡，首次设置会额外下载 CUDA 加速组件。";
+      }
+    }
   }
 
   function renderDownload(state) {
