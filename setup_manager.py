@@ -264,20 +264,204 @@ class SetupManager:
 
     def _refresh_options(self) -> None:
         profile = self._detect_hardware()
-        w_downloaded = {item["name"] for item in models.whisper_catalog()}
-        l_downloaded = {item["name"] for item in models.llm_catalog()}
+        whisper_rows = models.whisper_catalog()
+        llm_rows = models.llm_catalog()
+        w_downloaded = {item["name"] for item in whisper_rows}
+        l_downloaded = {item["name"] for item in llm_rows}
         self._whisper = []
+        preset_whisper_dirs = {item["dir"] for item in WHISPER_OPTIONS}
         for item in WHISPER_OPTIONS:
             row = dict(item)
             row["downloaded"] = item["dir"] in w_downloaded
             row["recommended"] = item["id"] == self._recommended.get("whisper")
             self._whisper.append(row)
+        for item in whisper_rows:
+            if item["name"] in preset_whisper_dirs:
+                continue
+            self._whisper.append(
+                {
+                    "id": f"local-whisper-{item['name']}",
+                    "dir": item["name"],
+                    "label": item.get("label") or item["name"],
+                    "desc": "本地已有模型（models 目录）",
+                    "repo": "",
+                    "size_bytes": int(item.get("size_bytes", 0) or 0),
+                    "size": item.get("size", ""),
+                    "downloaded": True,
+                    "recommended": False,
+                    "local": True,
+                }
+            )
         self._llm = []
+        preset_llm_names = {item["name"] for item in LLM_OPTIONS}
         for item in LLM_OPTIONS:
             row = dict(item)
             row["downloaded"] = item["name"] in l_downloaded
             row["recommended"] = item["id"] == self._recommended.get("llm")
             self._llm.append(row)
+        for item in llm_rows:
+            if item["name"] in preset_llm_names:
+                continue
+            self._llm.append(
+                {
+                    "id": f"local-llm-{item['name']}",
+                    "name": item["name"],
+                    "file": item.get("file", ""),
+                    "label": item.get("label") or item["name"],
+                    "desc": "本地已有模型（models/llm 目录）",
+                    "repo": "",
+                    "size_bytes": int(item.get("size_bytes", 0) or 0),
+                    "size": item.get("size", ""),
+                    "downloaded": True,
+                    "recommended": False,
+                    "local": True,
+                }
+            )
+
+    @staticmethod
+    def _is_under(path: Path, root: Path) -> bool:
+        try:
+            path.resolve().relative_to(root.resolve())
+            return True
+        except (ValueError, OSError):
+            return False
+
+    def import_local_model(self, kind: str, source_path: str) -> dict[str, Any]:
+        """Copy a local Whisper folder / GGUF into models/ and refresh setup options.
+
+        Presets are matched by folder name, GGUF file name, or model.bin/file
+        size so a local copy of a preset is shown as "已下载" instead of
+        becoming a duplicate entry.
+        """
+        kind = str(kind or "").strip()
+        if kind not in ("whisper", "llm"):
+            raise ValueError("模型类型必须是 whisper 或 llm")
+        if self._busy:
+            raise ValueError("正在下载模型，请稍后再导入")
+        source = Path(str(source_path or "").strip().strip('"')).expanduser()
+        if not source.exists():
+            raise ValueError("选择的模型路径不存在")
+        models_dir = config.MODELS_DIR
+        models_dir.mkdir(parents=True, exist_ok=True)
+        self._set(_message="正在导入本地模型…")
+        self._publish()
+        matched_preset = False
+        selected_id = ""
+        target: Path
+        if kind == "whisper":
+            if not source.is_dir() or source.resolve() == models_dir.resolve():
+                raise ValueError("Whisper 模型必须选择一个 faster-whisper 目录")
+            if not (source / "model.bin").is_file() or not (source / "config.json").is_file():
+                raise ValueError("Whisper 目录必须包含 model.bin 和 config.json")
+            source_size = (source / "model.bin").stat().st_size
+            preset = next(
+                (
+                    item
+                    for item in WHISPER_OPTIONS
+                    if item["dir"] in (source.name, f"faster-whisper-{source.name}")
+                ),
+                None,
+            )
+            if preset is None:
+                preset = next(
+                    (
+                        item
+                        for item in WHISPER_OPTIONS
+                        if abs(source_size - int(item["size_bytes"]))
+                        <= max(2_000_000, int(int(item["size_bytes"]) * 0.005))
+                    ),
+                    None,
+                )
+            if preset is not None:
+                target = models_dir / preset["dir"]
+                matched_preset = True
+                selected_id = str(preset["id"])
+            else:
+                name = source.name if "whisper" in source.name.lower() else f"faster-whisper-{source.name}"
+                target = models_dir / name
+            if source.resolve() != target.resolve():
+                if target.exists():
+                    if not (target / "model.bin").is_file() or not (target / "config.json").is_file():
+                        raise ValueError("models 目录里已有同名模型，但不完整")
+                elif self._is_under(source, models_dir):
+                    source.rename(target)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    temp = target.with_name(target.name + ".importing")
+                    shutil.rmtree(temp, ignore_errors=True)
+                    try:
+                        shutil.copytree(source, temp)
+                        temp.rename(target)
+                    except Exception:
+                        shutil.rmtree(temp, ignore_errors=True)
+                        raise
+            models.invalidate_cache()
+            if preset is None:
+                try:
+                    models.add_custom("whisper", target.name, str(target), "本地导入")
+                except ValueError:
+                    pass
+                selected_id = f"local-whisper-{target.name}"
+        else:
+            if not source.is_file() or source.suffix.lower() != ".gguf":
+                raise ValueError("语言模型必须选择一个 .gguf 文件")
+            if source.stat().st_size < 100 * 1024 * 1024:
+                raise ValueError("这个 GGUF 文件太小，不像完整模型")
+            source_size = source.stat().st_size
+            preset = next(
+                (item for item in LLM_OPTIONS if item["file"].lower() == source.name.lower()),
+                None,
+            )
+            if preset is None:
+                preset = next(
+                    (
+                        item
+                        for item in LLM_OPTIONS
+                        if abs(source_size - int(item["size_bytes"]))
+                        <= max(5_000_000, int(int(item["size_bytes"]) * 0.005))
+                    ),
+                    None,
+                )
+            if preset is not None:
+                target = models_dir / "llm" / preset["file"]
+                matched_preset = True
+                selected_id = str(preset["id"])
+            else:
+                target = models_dir / "llm" / source.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if source.resolve() != target.resolve():
+                if target.exists():
+                    if target.stat().st_size < 100 * 1024 * 1024:
+                        raise ValueError("models/llm 目录里已有同名模型，但不完整")
+                elif self._is_under(source, models_dir):
+                    source.replace(target)
+                else:
+                    temp = target.with_name(target.name + ".importing")
+                    temp.unlink(missing_ok=True)
+                    try:
+                        shutil.copy2(source, temp)
+                        temp.replace(target)
+                    except Exception:
+                        temp.unlink(missing_ok=True)
+                        raise
+            models.invalidate_cache()
+            if preset is None:
+                try:
+                    models.add_custom("llm", target.stem, str(target), "本地导入")
+                except ValueError:
+                    pass
+                selected_id = f"local-llm-{models._llm_ollama_name(target, models._params_from_name(target.stem))}"
+        models.invalidate_cache()
+        self._refresh_options()
+        self._set(_message="本地模型已加入列表。")
+        self._publish()
+        return {
+            "kind": kind,
+            "path": str(target),
+            "selected_id": selected_id,
+            "matched_preset": matched_preset,
+            "state": self.public_state(),
+        }
 
     def public_state(self) -> dict[str, Any]:
         with self._lock:

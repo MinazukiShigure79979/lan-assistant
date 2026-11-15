@@ -93,6 +93,9 @@ button, input { font: inherit; }
 .setup-source-row .btn-ghost { margin-top: 0; }
 .error-box { max-width: 740px; margin-top: 14px; padding: 11px 12px; border: 1px solid rgba(255,133,133,.28); border-radius: 8px; color: #ffc0c0; background: rgba(255,133,133,.07); font-size: 11px; line-height: 1.6; white-space: pre-wrap; }
 .hardware-line { padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: 10.5px; line-height: 1.6; }
+.setup-local-models { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 10.5px; }
+.setup-local-models .btn-ghost { margin-top: 0; }
+.setup-local-models .install-note { margin-top: 0; flex: 1 1 260px; }
 .model-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
 .model-column { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.018); }
 .model-column-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }

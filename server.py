@@ -3613,19 +3613,38 @@ class Handler(BaseHTTPRequestHandler):
                 }
             )
             return
+        if path == "/api/setup/import-model":
+            try:
+                result = self.app.setup.import_local_model(
+                    str(body.get("kind", "") or ""),
+                    str(body.get("path", "") or ""),
+                )
+                self._json({"ok": True, **result})
+            except Exception as exc:
+                self._error(f"导入本地模型失败：{exc}", 400)
+            return
         if path == "/api/dialog/file":
             try:
-                selected = dialog_helper.pick_file(
-                    "选择 Ollama ZIP 安装包",
-                    "Ollama ZIP (*.zip)|*.zip|All files (*.*)|*.*",
-                )
+                kind = str(body.get("kind", "") or "")
+                if kind == "gguf":
+                    selected = dialog_helper.pick_file(
+                        "选择本地 GGUF 模型",
+                        "GGUF 模型 (*.gguf)|*.gguf|All files (*.*)|*.*",
+                    )
+                else:
+                    selected = dialog_helper.pick_file(
+                        "选择 Ollama ZIP 安装包",
+                        "Ollama ZIP (*.zip)|*.zip|All files (*.*)|*.*",
+                    )
                 self._json({"ok": True, "path": selected})
             except Exception as exc:
                 self._error(f"打开文件选择窗口失败：{exc}", 500)
             return
         if path == "/api/dialog/folder":
             try:
-                selected = dialog_helper.pick_folder("选择本地 CUDA 组件目录")
+                kind = str(body.get("kind", "") or "")
+                title = "选择本地 Whisper 模型目录" if kind == "whisper" else "选择本地 CUDA 组件目录"
+                selected = dialog_helper.pick_folder(title)
                 self._json({"ok": True, "path": selected})
             except Exception as exc:
                 self._error(f"打开目录选择窗口失败：{exc}", 500)

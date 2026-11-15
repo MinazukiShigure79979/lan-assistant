@@ -25,6 +25,9 @@
     llmList: $("#llmList"),
     whisperCount: $("#whisperCount"),
     llmCount: $("#llmCount"),
+    importLocalWhisper: $("#importLocalWhisper"),
+    importLocalLlm: $("#importLocalLlm"),
+    localModelMessage: $("#localModelMessage"),
     downloadBtn: $("#downloadBtn"),
     downloadSummary: $("#downloadSummary"),
     downloadHint: $("#downloadHint"),
@@ -153,6 +156,8 @@
     ).reduce((sum, item) => sum + (Number(item.size_bytes) || 0), 0);
     els.downloadBtn.disabled = busy || !whisperOk || !llmOk;
     els.downloadBtn.textContent = busy ? "下载中…" : "下载并启动";
+    if (els.importLocalWhisper) els.importLocalWhisper.disabled = busy;
+    if (els.importLocalLlm) els.importLocalLlm.disabled = busy;
     els.downloadSummary.textContent = whisperOk && llmOk
       ? `已选择 ${selectedWhisper.size} 个语音模型 + ${selectedLlm.size} 个回答模型 · 约 ${(totalGb / 1024 ** 3).toFixed(1)} GB`
       : "请至少选择一个语音识别模型和一个回答模型";
@@ -265,6 +270,45 @@
       sync(state);
     } catch (err) {
       els.loading.querySelector("p").textContent = `无法连接本地服务：${err.message}`;
+    }
+  }
+
+  async function importLocalModel(kind) {
+    const button = kind === "whisper" ? els.importLocalWhisper : els.importLocalLlm;
+    const original = button ? button.textContent : "";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "正在打开…";
+    }
+    if (els.localModelMessage) els.localModelMessage.textContent = "请选择本地模型文件或目录。";
+    try {
+      const dialog = await api(
+        kind === "whisper" ? "/api/dialog/folder" : "/api/dialog/file",
+        { method: "POST", body: JSON.stringify({ kind }) },
+      );
+      if (!dialog.path) return;
+      if (button) button.textContent = "正在导入…";
+      if (els.localModelMessage) els.localModelMessage.textContent = "正在复制/登记本地模型…";
+      const result = await api("/api/setup/import-model", {
+        method: "POST",
+        body: JSON.stringify({ kind, path: dialog.path }),
+      });
+      if (result.selected_id) {
+        (kind === "whisper" ? selectedWhisper : selectedLlm).add(result.selected_id);
+      }
+      if (result.state) sync(result.state);
+      if (els.localModelMessage) {
+        els.localModelMessage.textContent = result.matched_preset
+          ? "已匹配预设模型，列表中已标记为“已下载”。"
+          : "已导入本地模型，可以在列表中勾选。";
+      }
+    } catch (err) {
+      if (els.localModelMessage) els.localModelMessage.textContent = err.message;
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = original;
+      }
     }
   }
 
@@ -388,6 +432,12 @@
   }
   if (els.installOllamaLocal) {
     els.installOllamaLocal.addEventListener("click", startLocalOllamaInstall);
+  }
+  if (els.importLocalWhisper) {
+    els.importLocalWhisper.addEventListener("click", () => importLocalModel("whisper"));
+  }
+  if (els.importLocalLlm) {
+    els.importLocalLlm.addEventListener("click", () => importLocalModel("llm"));
   }
   if (els.ollamaSource) {
     els.ollamaSource.addEventListener("change", () => {

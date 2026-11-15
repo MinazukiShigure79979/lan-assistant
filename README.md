@@ -102,11 +102,12 @@ Windows 安装包见 [GitHub Releases](https://github.com/MinazukiShigure79979/l
 
 1. 在首次设置页选择 Ollama 下载源（官方 / GitHub / 自定义 ZIP），点击下载便携版到 `%LOCALAPPDATA%\Lan.Assistant\ollama`（不需要管理员权限）
 2. 也可以点 **浏览** 选择已经下载好的 `ollama-windows-amd64.zip`，直接从本地安装，不走网络
-3. **检测到 NVIDIA 显卡时**，自动下载约 1.3 GB 的 CUDA/cuDNN 加速组件到 `%LOCALAPPDATA%\Lan.Assistant\cuda`
-4. 只有核显或纯 CPU 的电脑会跳过 CUDA 下载，直接使用 CPU 识别
-5. 根据当前电脑自动勾选一个推荐 Whisper 和一个推荐 Qwen 模型
-6. 允许手动勾选其它模型
-7. 下载完成后才启动语音识别、语言模型和主界面
+3. 模型页可以点 **选择本地 Whisper 目录** 或 **选择本地 GGUF 文件** 导入已有模型；如果与预设模型相同，会直接标记为“已下载”而不是重复下载
+4. **检测到 NVIDIA 显卡时**，自动下载约 1.3 GB 的 CUDA/cuDNN 加速组件到 `%LOCALAPPDATA%\Lan.Assistant\cuda`
+5. 只有核显或纯 CPU 的电脑会跳过 CUDA 下载，直接使用 CPU 识别
+6. 根据当前电脑自动勾选一个推荐 Whisper 和一个推荐 Qwen 模型
+7. 允许手动勾选其它模型
+8. 下载完成后才启动语音识别、语言模型和主界面
 
 如果系统使用 ShadowSocksR 等 PAC 代理，程序会自动读取 Windows 的 PAC 地址并设置下载代理。CUDA 组件下载失败不会阻止首次设置；程序会自动回退到 CPU。之后可以在 **设置 → 全局设置 → GPU 加速组件** 重新下载，或用 **浏览** 选择本地已有的 `nvidia` 组件目录 / ZIP / `.whl` 文件夹，完成后重启应用生效。模型下载到 `models/`；如果安装目录不可写，会使用 `%LOCALAPPDATA%\Lan.Assistant\models`。已经装好 Ollama 和模型的本机升级不会重新进入首次设置。
 
